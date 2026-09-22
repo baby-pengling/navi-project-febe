@@ -21,3 +21,4 @@ Package.resolved
 
 # 환경변수
 .env
+Secrets.xcconfig
