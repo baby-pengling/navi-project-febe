@@ -24,13 +24,38 @@ final class NaviProjectUITests: XCTestCase {
 
     @MainActor
     func testExample() throws {
-        // UI tests must launch the application that they test.
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        XCTAssertTrue(app.buttons["navi.button.로그인"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["navi.button.새 계정 만들기"].exists)
+    }
+
+    @MainActor
+    func testSignupRejectsMalformedEmailBeforeNetworkRequest() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let signUpButton = app.buttons["navi.button.새 계정 만들기"]
+        XCTAssertTrue(signUpButton.waitForExistence(timeout: 5))
+        signUpButton.click()
+
+        let nameField = app.textFields["navi.input.이름"]
+        let emailField = app.textFields["navi.input.이메일"]
+        let passwordField = app.secureTextFields["navi.input.비밀번호"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 3))
+        XCTAssertTrue(emailField.exists)
+        XCTAssertTrue(passwordField.exists)
+
+        nameField.click()
+        nameField.typeText("Navi UI Test")
+        emailField.click()
+        emailField.typeText("invalid-email")
+        passwordField.click()
+        passwordField.typeText("NaviE2E!20260924")
+        app.buttons["navi.button.계정 만들기"].click()
+
+        XCTAssertTrue(app.staticTexts["올바른 이메일이 아닙니다."].waitForExistence(timeout: 3))
     }
 
     @MainActor
