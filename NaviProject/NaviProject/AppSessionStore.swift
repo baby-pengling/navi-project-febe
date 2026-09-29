@@ -91,10 +91,12 @@ final class AppSessionStore: ObservableObject {
         }
     }
 
+    /// Signs out this device only. The SDK drops the stored session before calling the server,
+    /// so the app returns to onboarding even if that request fails (e.g. offline).
     func signOut() async throws {
         guard let client else { throw AppSessionError.notConfigured }
-        try await client.auth.signOut()
-        session = nil
+        defer { session = nil }
+        try await client.auth.signOut(scope: .local)
     }
 
     func signUp(name: String, email: String, password: String, role: String) async throws -> Bool {
