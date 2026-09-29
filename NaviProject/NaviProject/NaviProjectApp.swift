@@ -15,6 +15,7 @@ struct NaviProjectApp: App {
         }
         #if os(macOS)
         .defaultSize(width: 1280, height: 720)
+        .commands { AccountCommands() }
         #endif
     }
 }

@@ -12,24 +12,27 @@ struct ContentView: View {
             } else if sessionStore.isRestoringSession {
                 LoadingView()
             } else if hasCompletedOnboarding && sessionStore.session != nil {
-                DashboardPlaceholderView(
-                    gmailConnected: sessionStore.onboardingState.gmailConnected,
-                    calendarConnected: sessionStore.onboardingState.calendarConnected,
+                MainWindowView(
+                    sessionStore: sessionStore,
                     onResetOnboarding: {
                         hasCompletedOnboarding = false
                     },
                     onSignOut: {
                         Task {
+                            // The session is gone even if this throws (see `signOut`), so always
+                            // reset — after it clears, or onboarding would resume at interests.
                             do {
                                 try await sessionStore.signOut()
-                                hasCompletedOnboarding = false
-                                onboardingStep = .programLanding
                             } catch {
                                 sessionStore.errorMessage = error.localizedDescription
                             }
+                            hasCompletedOnboarding = false
+                            onboardingStep = .programLanding
                         }
                     }
                 )
+                // The dashboard's two-column layout (Figma: 1282×694) needs a wider window.
+                .frame(minWidth: 1100, minHeight: 640)
             } else {
                 OnboardingRouter(
                     isCompleted: $hasCompletedOnboarding,
@@ -712,56 +715,6 @@ private struct NaviCard<Content: View>: View {
     }
 }
 
-private struct NaviMascotView: View {
-    let width: CGFloat
-
-    var body: some View {
-        Image("NaviMascot")
-            .resizable()
-            .scaledToFit()
-            .frame(width: width)
-            .accessibilityLabel("navi")
-    }
-}
-
-private struct NaviTextField: View {
-    let title: String
-    @Binding var text: String
-    var isSecure = false
-    var isRequired = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 3) {
-                Text(title)
-                    .font(NaviFont.body(11, weight: .semibold))
-                    .foregroundStyle(NaviTheme.grayText)
-                if isRequired {
-                    Text("*")
-                        .font(NaviFont.body(11, weight: .semibold))
-                        .foregroundStyle(NaviTheme.red)
-                }
-            }
-            Group {
-                if isSecure {
-                    SecureField("", text: $text)
-                } else {
-                    TextField("", text: $text)
-                }
-            }
-            .textFieldStyle(.plain)
-            .font(NaviFont.body(14, weight: .medium))
-            .foregroundStyle(NaviTheme.ink)
-            .accessibilityIdentifier("navi.input.\(title)")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NaviTheme.cardWhite)
-        .overlay(RoundedRectangle(cornerRadius: 15).stroke(NaviTheme.border, lineWidth: 1))
-    }
-}
-
 private struct InterestChip: View {
     let title: String
     let onRemove: () -> Void
@@ -829,44 +782,6 @@ private struct NaviLinkButton: View {
     }
 }
 
-private struct NaviButton: View {
-    enum Style {
-        case primary
-        case secondary
-    }
-
-    let title: String
-    var style: Style = .primary
-    var isEnabled = true
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(NaviFont.body(14, weight: .bold))
-                .foregroundStyle(textColor)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .padding(.horizontal, 25)
-                .background(backgroundColor)
-                .clipShape(RoundedRectangle(cornerRadius: 15))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("navi.button.\(title)")
-        .disabled(!isEnabled)
-    }
-
-    private var backgroundColor: Color {
-        guard isEnabled else { return NaviTheme.disabled }
-        return style == .primary ? NaviTheme.purple : NaviTheme.lavender
-    }
-
-    private var textColor: Color {
-        guard isEnabled else { return NaviTheme.cardWhite }
-        return style == .primary ? NaviTheme.offWhite : NaviTheme.purple
-    }
-}
-
 /// A "제목 안의 navi" title: the brand word renders in a heavier stand-in weight since the
 /// actual Paperlogy / Bagel Fat One typefaces aren't bundled with the app yet.
 private func naviTitle(_ prefix: String, suffix: String, size: CGFloat = 25) -> Text {
@@ -918,61 +833,5 @@ private struct NaviFlowLayout: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
-    }
-}
-
-// MARK: - Design tokens
-
-/// Maps the Figma type styles to the bundled Paperlogy / Pretendard / Bagel Fat One
-/// typefaces (see `Fonts/` and `Info.plist`'s `UIAppFonts`).
-private enum NaviFont {
-    /// Figma's H3/H6 styles are always "Paperlogy 7 Bold" — the family has no other weight
-    /// in this flow, so the size is the only thing that varies.
-    static func title(_ size: CGFloat) -> Font {
-        .custom("Paperlogy-7Bold", size: size)
-    }
-
-    /// The "navi" wordmark accent inside titles.
-    static func wordmark(_ size: CGFloat) -> Font {
-        .custom("BagelFatOne-Regular", size: size)
-    }
-
-    static func body(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .custom(pretendardName(for: weight), size: size)
-    }
-
-    private static func pretendardName(for weight: Font.Weight) -> String {
-        switch weight {
-        case .black: return "Pretendard-Black"
-        case .heavy, .bold: return "Pretendard-Bold"
-        case .semibold: return "Pretendard-SemiBold"
-        case .medium: return "Pretendard-Medium"
-        case .light: return "Pretendard-Light"
-        case .ultraLight, .thin: return "Pretendard-Thin"
-        default: return "Pretendard-Regular"
-        }
-    }
-}
-
-private enum NaviTheme {
-    static let purple = Color(red: 0.443, green: 0.396, blue: 1.0) // #7165FF
-    static let ink = Color(red: 0.098, green: 0.098, blue: 0.110) // #19191C
-    static let grayMain = Color(red: 0.420, green: 0.482, blue: 0.525) // #6B7B86
-    static let grayText = Color(red: 0.459, green: 0.451, blue: 0.478) // #75737A
-    static let border = Color(red: 0.859, green: 0.851, blue: 0.878) // #DBD9E0
-    static let lavender = Color(red: 0.925, green: 0.918, blue: 1.0) // #ECEAFF
-    static let cardWhite = Color(red: 1.0, green: 1.0, blue: 1.0) // #FFFFFF
-    static let offWhite = Color(red: 0.973, green: 0.976, blue: 0.980) // #F8F9FA
-    static let red = Color(red: 0.898, green: 0.251, blue: 0.310) // #E5404F
-    /// Darker than `border` on purpose — the Figma disabled-button fill (#DBD9E0) is too close
-    /// in lightness to white button text to read, so the disabled state uses this instead.
-    static let disabled = Color(red: 0.663, green: 0.655, blue: 0.686) // #A9A7AF
-
-    static var background: Color {
-        #if os(macOS)
-        return Color(nsColor: .windowBackgroundColor)
-        #else
-        return Color(.systemBackground)
-        #endif
     }
 }
