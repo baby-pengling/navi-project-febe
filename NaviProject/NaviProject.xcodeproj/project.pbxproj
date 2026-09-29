@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A70F7EF730642417007926D9 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A7811C94306184410012E7DD /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A7A6BF1C3059304900CCE1BC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +28,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A7811C94306184410012E7DE /* ../Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = ../Info.plist; sourceTree = "<group>"; };
+		A7811C94306184410012E7DF /* ../Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ../Secrets.xcconfig; sourceTree = "<group>"; };
 		A7A6BF0E3059304800CCE1BC /* NaviProject.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NaviProject.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A7A6BF1B3059304900CCE1BC /* NaviProjectTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NaviProjectTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A7A6BF253059304900CCE1BC /* NaviProjectUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NaviProjectUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,6 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A70F7EF730642417007926D9 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +85,8 @@
 				A7A6BF103059304800CCE1BC /* NaviProject */,
 				A7A6BF1E3059304900CCE1BC /* NaviProjectTests */,
 				A7A6BF283059304900CCE1BC /* NaviProjectUITests */,
+				A7811C94306184410012E7DE /* ../Info.plist */,
+				A7811C94306184410012E7DF /* ../Secrets.xcconfig */,
 				A7A6BF0F3059304800CCE1BC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -112,6 +121,7 @@
 			);
 			name = NaviProject;
 			packageProductDependencies = (
+				A7811C94306184410012E7DD /* Supabase */,
 			);
 			productName = NaviProject;
 			productReference = A7A6BF0E3059304800CCE1BC /* NaviProject.app */;
@@ -388,15 +398,18 @@
 		};
 		A7A6BF303059304900CCE1BC /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7811C94306184410012E7DF /* ../Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NaviProject/NaviProject.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ../Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -412,7 +425,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com..babypengling.NaviProject;
+				PRODUCT_BUNDLE_IDENTIFIER = com.babypengling.NaviProject;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -430,15 +443,18 @@
 		};
 		A7A6BF313059304900CCE1BC /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7811C94306184410012E7DF /* ../Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NaviProject/NaviProject.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ../Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -454,7 +470,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com..babypengling.NaviProject;
+				PRODUCT_BUNDLE_IDENTIFIER = com.babypengling.NaviProject;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -619,6 +635,14 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A7811C94306184410012E7DD /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A7811C94306184410012E7DC /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A7A6BF063059304800CCE1BC /* Project object */;
 }
