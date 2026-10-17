@@ -66,7 +66,7 @@ struct BackendIntegrationTests {
         await #expect(throws: notConnected) { _ = try await services.mail.inbox() }
         await #expect(throws: notConnected) { _ = try await services.calendar.todayBriefing() }
         #expect(try await services.mail.drafts().isEmpty)
-        try await services.assistant.command("오늘 할 일 정리") // 202; the result lands on assistant_commands
+        _ = try await services.assistant.command("오늘 할 일 정리") // 202; the result lands on assistant_commands
         await #expect {
             try await services.googleAuth.registerCredentials(refreshToken: "", scopes: [])
         } throws: { ($0 as? EdgeError).map { if case .server("GOOGLE_REFRESH_TOKEN_MISSING", _) = $0 { true } else { false } } ?? false }
@@ -101,6 +101,25 @@ struct BackendIntegrationTests {
         await #expect {
             let _: Response = try await edge.call(.post, "todo-ai/todos/suggest", body: Body(week: "last"))
         } throws: { ($0 as? EdgeError).map { if case .server("INVALID_WEEK", _) = $0 { true } else { false } } ?? false }
+    }
+
+    /// A tab's prompt bar: the command finishes with navi's answer (and any todo Claude made
+    /// shows up in the list), or fails with `LLM_NOT_CONFIGURED` without an LLM key.
+    @Test func promptCommandReturnsResult() async throws {
+        let (client, userID, _) = try await signUp()
+        let assistant = AssistantService(edge: EdgeClient(client: client), client: client, userID: userID)
+        let id = try await assistant.command("오늘 할 일 정리해줘")
+        let result = try await assistant.commandResult(id, timeout: .seconds(30))
+        switch result.status {
+        case .completed, .awaitingApproval:
+            #expect(!result.text.isEmpty)
+            if result.tools.contains("create_todo") {
+                let todos = try await SupabaseTodoStore(client: client, userID: userID).allTodos()
+                #expect(!todos.isEmpty)
+            }
+        case .failed(let code):
+            #expect(code == "LLM_NOT_CONFIGURED")
+        }
     }
 
     /// The reply row always arrives (Claude's answer, or an apology when the LLM key isn't set).

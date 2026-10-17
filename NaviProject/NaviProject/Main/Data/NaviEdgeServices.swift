@@ -4,8 +4,7 @@ import Supabase
 // Edge Function / assistant-table clients for the Notion "API 명세" EDGE rows (`mail`,
 // `calendar`, `assistant`, `todo-ai`, `google-auth`), all in `supabase/functions` (`assistant`,
 // `todo-ai`, and mail summaries call Claude there). A function or
-// route that isn't deployed fails with `EdgeError.unavailable`; the tab models then fall back to
-// sample data in DEBUG builds and show an error otherwise.
+// route that isn't deployed fails with `EdgeError.unavailable`; the tab models show the error.
 //
 // Request/response field names follow the spec where it names them (`events[]` items,
 // `summary / reply_suggestion / suggested_todos`, `{error:{code,message}}`). Where the spec is
@@ -162,8 +161,7 @@ struct EdgeClient: Sendable {
 }
 
 extension AppSessionStore {
-    /// Edge / assistant services for the signed-in user, or `nil` without a session (the tabs
-    /// then show sample data).
+    /// Edge / assistant services for the signed-in user, or `nil` without a session.
     func makeEdgeServices() -> EdgeServices? {
         guard let client, let userID = session?.user.id else { return nil }
         let edge = EdgeClient(client: client)
@@ -707,11 +705,89 @@ struct AssistantService: Sendable {
                             body: Body(content: text), idempotent: true)
     }
 
-    /// `POST /assistant/command` from a tab's prompt input. Returns 202; results arrive on
-    /// `assistant_commands`.
-    func command(_ text: String) async throws {
-        struct Body: Encodable { let text: String }
-        try await edge.send(.post, "assistant/command", body: Body(text: text), idempotent: true)
+    /// What a tab's prompt is about (`context` of `assistant/command`): a row the user owns.
+    struct Attachment: Encodable, Equatable, Sendable {
+        /// "mail_message" / "calendar_event" / "todo"
+        let type: String
+        let id: UUID
+    }
+
+    /// An `assistant_commands` row Claude has finished with.
+    struct CommandResult: Equatable, Sendable {
+        enum Status: Equatable, Sendable {
+            case completed
+            /// A mail draft or calendar change waits for the user.
+            case awaitingApproval
+            case failed(code: String?)
+        }
+
+        let status: Status
+        /// navi's answer: lead line, then numbered lines.
+        let text: String
+        /// Tools Claude ran (`create_todo`, `create_mail_draft`, `propose_calendar_event`).
+        let tools: [String]
+    }
+
+    struct CommandRow: Decodable, Sendable {
+        struct ToolCall: Decodable, Sendable { let tool: String }
+
+        let status: String
+        let resultText: String?
+        let errorCode: String?
+        let toolCalls: [ToolCall]?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case resultText = "result_text"
+            case errorCode = "error_code"
+            case toolCalls = "tool_calls"
+        }
+
+        /// `nil` while Claude is still working (`received` / `running`).
+        var result: CommandResult? {
+            let tools = (toolCalls ?? []).map(\.tool)
+            let text = resultText ?? ""
+            switch status {
+            case "completed": return CommandResult(status: .completed, text: text, tools: tools)
+            case "awaiting_approval": return CommandResult(status: .awaitingApproval, text: text, tools: tools)
+            case "failed": return CommandResult(status: .failed(code: errorCode), text: text, tools: tools)
+            default: return nil
+            }
+        }
+    }
+
+    /// `POST /assistant/command` from a tab's prompt input. Returns the command id right away
+    /// (202); Claude's result lands on that `assistant_commands` row.
+    func command(_ text: String, context: Attachment? = nil) async throws -> UUID {
+        struct Body: Encodable {
+            let text: String
+            let context: Attachment?
+        }
+        struct Response: Decodable {
+            let commandId: UUID
+            enum CodingKeys: String, CodingKey { case commandId = "command_id" }
+        }
+        let response: Response = try await edge.call(.post, "assistant/command",
+                                                     body: Body(text: text, context: context), idempotent: true)
+        return response.commandId
+    }
+
+    /// Polls the command's row until Claude is done (or `timeout` passes).
+    func commandResult(_ id: UUID, timeout: Duration = .seconds(90)) async throws -> CommandResult {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            let row: CommandRow = try await table { try await client
+                .from("assistant_commands")
+                .select("status, result_text, error_code, tool_calls")
+                .eq("id", value: id.uuidString)
+                .single()
+                .execute()
+                .value
+            }
+            if let result = row.result { return result }
+            try await Task.sleep(for: .seconds(1))
+        }
+        throw EdgeError.server(code: "TIMEOUT", message: "navi가 아직 처리 중이에요. 잠시 후 다시 확인해 주세요.")
     }
 
     /// Streams new messages of one conversation until the task is cancelled.

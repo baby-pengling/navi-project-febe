@@ -7,7 +7,6 @@ struct CalendarTabView: View {
     /// Opens the "이번 주 준비를 정리하고 있어요" dialog.
     let onStartPrep: () -> Void
 
-    @State private var assistantText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -151,7 +150,7 @@ struct CalendarTabView: View {
         VStack(spacing: 10) {
             rightPanel
                 .frame(maxHeight: .infinity, alignment: .top)
-            NaviPromptInput(prompt: "빈 시간에 할 일을 배치해 줘", text: $assistantText, onSubmit: model.sendAssistantPrompt)
+            NaviAssistantPrompt(prompt: "빈 시간에 할 일을 배치해 줘")
         }
         .frame(maxHeight: .infinity)
     }

@@ -8,7 +8,6 @@ struct TodoTabView: View {
     let onAddCategory: () -> Void
 
     @State private var quickAddText = ""
-    @State private var assistantText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -40,11 +39,7 @@ struct TodoTabView: View {
                 VStack(spacing: 10) {
                     rightPanel
                         .frame(maxHeight: .infinity, alignment: .top)
-                    NaviPromptInput(
-                        prompt: "내가 놓친 할 일이 있어?",
-                        text: $assistantText,
-                        onSubmit: model.sendAssistantPrompt
-                    )
+                    NaviAssistantPrompt(prompt: "내가 놓친 할 일이 있어?")
                 }
                 .frame(width: rightWidth)
                 .frame(maxHeight: .infinity)
