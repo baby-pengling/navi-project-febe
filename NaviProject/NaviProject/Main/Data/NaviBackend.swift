@@ -2,8 +2,8 @@ import Foundation
 import Supabase
 
 // Supabase-backed data access for the main window (Notion "API 명세": TABLE / RPC / AUTH-SDK
-// rows). Mail, calendar events, the assistant, and Google disconnect are Edge Function work
-// that doesn't exist yet, so those screens still use mock data.
+// rows). Mail, calendar events, the assistant, and Google disconnect go through the Edge
+// Functions in `NaviEdgeServices.swift`.
 
 // MARK: - Todos
 
@@ -19,7 +19,7 @@ struct TodoOrderUpdate: Encodable, Equatable, Sendable {
 }
 
 /// What the dashboard needs from the todo backend. `SupabaseTodoStore` is the real one;
-/// previews and mock mode run without a store.
+/// previews run without a store.
 protocol TodoStore: Sendable {
     func todayTodos() async throws -> [DashboardTodo]
     /// Every top-level todo (`get_todos(filter => 'all')`); the todo tab groups them by deadline.
@@ -39,8 +39,7 @@ protocol TodoStore: Sendable {
 }
 
 extension AppSessionStore {
-    /// The signed-in user's todo store, or `nil` without a session (the dashboard then shows
-    /// mock data).
+    /// The signed-in user's todo store, or `nil` without a session.
     func makeTodoStore() -> TodoStore? {
         guard let client, let userID = session?.user.id else { return nil }
         return SupabaseTodoStore(client: client, userID: userID)

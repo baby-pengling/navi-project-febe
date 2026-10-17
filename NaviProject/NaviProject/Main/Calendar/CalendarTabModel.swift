@@ -7,8 +7,8 @@ import Foundation
 ///
 /// Calendar categories and their visibility come from Supabase (`calendar_categories`);
 /// todos made from events come from the todo tab's model. Events go through the `calendar`
-/// Edge Function (Google Calendar); weekly prep through `todo-ai`. Until those are deployed,
-/// DEBUG builds fall back to sample events and suggestions.
+/// Edge Function (Google Calendar); weekly prep through `todo-ai`. Failures show as
+/// `errorMessage`.
 @MainActor
 final class CalendarTabModel: ObservableObject {
     enum Mode: Hashable, CaseIterable {
@@ -65,11 +65,7 @@ final class CalendarTabModel: ObservableObject {
         calendar.firstWeekday = 1 // Figma weeks run 일–토.
         self.calendar = calendar
         selectedDay = calendar.startOfDay(for: now)
-        let mock = Self.mockData(now: now, calendar: calendar)
-        events = services == nil ? mock.events : []
-        if store == nil {
-            categories = mock.categories.map { ($0, true) }
-        }
+        events = []
         // Re-render when the linked todos change.
         todoModel.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -99,12 +95,6 @@ final class CalendarTabModel: ObservableObject {
         do {
             events = try await service.events(from: start, to: end)
         } catch {
-            #if DEBUG
-            if error as? EdgeError == .unavailable {
-                if events.isEmpty { events = Self.mockData(now: .now, calendar: calendar).events }
-                return
-            }
-            #endif
             loadedMonth = nil
             errorMessage = "일정을 불러오지 못했어요."
         }
@@ -283,39 +273,11 @@ final class CalendarTabModel: ObservableObject {
                 panel = .prep
                 return true
             } catch {
-                #if DEBUG
-                if error as? EdgeError == .unavailable { return sampleSuggestions() }
-                #endif
-                errorMessage = "추천 할 일을 만들지 못했어요."
+                errorMessage = (error as? EdgeError)?.errorDescription ?? "추천 할 일을 만들지 못했어요."
                 return true
             }
         }
-        return sampleSuggestions()
-    }
-
-    private func sampleSuggestions() -> Bool {
-        let week = weekDays
-        guard week.count == 7 else { return false }
-        func at(_ index: Int, _ hour: Int) -> Date {
-            calendar.date(bySettingHour: hour, minute: 0, second: 0, of: week[index]) ?? week[index]
-        }
-        let todoCategories = todoModel.categories
-        var items: [PrepSuggestion] = []
-        if criteria.mail || criteria.incompleteTodos {
-            items.append(PrepSuggestion(id: UUID(), title: "디자인 리뷰", dueAt: at(3, 17), category: todoCategories.first,
-                                        reason: [criteria.mail ? "메일" : nil, criteria.incompleteTodos ? "미완료 할 일" : nil].compactMap { $0 }.joined(separator: " + "),
-                                        effort: "", isSelected: false))
-        }
-        if criteria.relatedTodos {
-            items.append(PrepSuggestion(id: UUID(), title: "[이음] 인터뷰", dueAt: at(4, 18), category: todoCategories.first,
-                                        reason: "연관 할 일", effort: ""))
-        }
-        if criteria.userPattern {
-            items.append(PrepSuggestion(id: UUID(), title: "발표 리허설", dueAt: at(5, 10), category: todoCategories.first,
-                                        reason: "", effort: ""))
-        }
-        suggestions = items
-        panel = .prep
+        errorMessage = "로그인 후 추천 할 일을 받을 수 있어요."
         return true
     }
 
@@ -349,45 +311,5 @@ final class CalendarTabModel: ObservableObject {
             NewTodoDraft(title: suggestion.title, dueAt: suggestion.dueAt, category: suggestion.category),
             source: .calendarSuggestion
         )
-    }
-
-    func sendAssistantPrompt(_ text: String) {
-        guard let assistant = services?.assistant else { return }
-        Task {
-            do {
-                try await assistant.command(text)
-            } catch {
-                errorMessage = error as? EdgeError == .unavailable ? "AI 비서가 아직 연결되지 않았어요." : "요청을 보내지 못했어요."
-            }
-        }
-    }
-
-    // MARK: - Mock events
-
-    private static func mockData(now: Date, calendar: Calendar) -> (events: [DashboardEvent], categories: [NaviCategory]) {
-        let navi = NaviCategory(id: UUID(), name: "navi", color: "#7165FF")
-        let team = NaviCategory(id: UUID(), name: "팀", color: "#E5404F")
-        let study = NaviCategory(id: UUID(), name: "스터디", color: "#3366CC")
-        let personal = NaviCategory(id: UUID(), name: "개인", color: "#2EA366")
-        let today = calendar.startOfDay(for: now)
-        func event(_ title: String, _ dayOffset: Int, _ hour: Int, _ minute: Int = 0, minutes: Int = 60,
-                   _ category: NaviCategory, _ location: String? = nil) -> DashboardEvent {
-            let day = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
-            let start = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
-            return DashboardEvent(id: UUID(), title: title, startAt: start,
-                                  endAt: start.addingTimeInterval(TimeInterval(minutes * 60)),
-                                  isAllDay: false, category: category, location: location)
-        }
-        let events = [
-            event("팀 스탠드업", 0, 9, minutes: 60, navi, "우정정보관 205호"),
-            event("사용자 인터뷰", 0, 10, 30, minutes: 30, team, "Zoom"),
-            event("서류 제출", 1, 14, minutes: 30, study),
-            event("프로젝트 회의", 3, 16, minutes: 60, team, "우정정보관 205호"),
-            event("팀 회의", -13, 11, minutes: 60, navi),
-            event("스터디", -7, 19, minutes: 90, study),
-            event("워크숍", 8, 13, minutes: 120, personal, "본관 3층"),
-            event("발표 준비", 13, 15, minutes: 60, navi),
-        ]
-        return (events, [navi, team, study, personal])
     }
 }
