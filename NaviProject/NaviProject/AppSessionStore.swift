@@ -10,6 +10,8 @@ import AppKit
 @MainActor
 final class AppSessionStore: ObservableObject {
     static let redirectURL = URL(string: "navi://auth-callback")!
+    /// Read/label/draft/send mail and read/write events (Notion "API 명세" google-auth).
+    static let googleScopes = "https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar.events"
 
     @Published private(set) var session: Session?
     @Published private(set) var isLoading = true
@@ -155,28 +157,52 @@ final class AppSessionStore: ObservableObject {
         try await saveOnboardingMemory(interests: interests)
     }
 
+    /// Gmail and Calendar are granted in one Google consent. The first time links the Google
+    /// identity to this account; after that (reconnect) it signs in with the linked identity,
+    /// which lands on the same user. Either way the refresh token goes to
+    /// `google-auth/credentials`, which keeps it in Vault and updates `users` / `auth_status`.
     func connectGoogleServices() async throws {
         guard let client else { throw AppSessionError.notConfigured }
 
         isLoading = true
         errorMessage = nil
         do {
-            let response = try await client.auth.getLinkIdentityURL(
-                provider: .google,
-                scopes: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly",
-                redirectTo: Self.redirectURL,
-                queryParams: [
-                    (name: "access_type", value: "offline"),
-                    (name: "prompt", value: "consent")
-                ]
-            )
+            let previous = session
+            let isLinked = session?.user.identities?.contains(where: { $0.provider == "google" }) ?? false
+            let queryParams: [(name: String, value: String?)] = [
+                (name: "access_type", value: "offline"),
+                (name: "prompt", value: "consent")
+            ]
+            let authorizeURL = if isLinked {
+                try client.auth.getOAuthSignInURL(
+                    provider: .google, scopes: Self.googleScopes, redirectTo: Self.redirectURL, queryParams: queryParams
+                )
+            } else {
+                try await client.auth.getLinkIdentityURL(
+                    provider: .google, scopes: Self.googleScopes, redirectTo: Self.redirectURL, queryParams: queryParams
+                ).url
+            }
 
             let callbackURL = try await authenticate(
-                using: response.url,
+                using: authorizeURL,
                 callbackURLScheme: Self.redirectURL.scheme!
             )
-            session = try await client.auth.session(from: callbackURL)
-            try await ensureConnectedUserProfile()
+            let linkedSession = try await client.auth.session(from: callbackURL)
+            // Picking another Google account on reconnect would sign in as a different user.
+            if let previous, linkedSession.user.id != previous.user.id {
+                session = try? await client.auth.setSession(
+                    accessToken: previous.accessToken, refreshToken: previous.refreshToken
+                )
+                throw AppSessionError.googleAccountMismatch
+            }
+            session = linkedSession
+            guard let refreshToken = linkedSession.providerRefreshToken else {
+                throw AppSessionError.googleIdentityMissing
+            }
+            try await makeEdgeServices()?.googleAuth.registerCredentials(
+                refreshToken: refreshToken,
+                scopes: Self.googleScopes.components(separatedBy: " ")
+            )
 
             try await updateUserMetadata([
                 "navi_gmail_connected": .bool(true),
@@ -267,41 +293,6 @@ final class AppSessionStore: ObservableObject {
             .execute()
     }
 
-    private func ensureConnectedUserProfile() async throws {
-        guard let client, let session else { throw AppSessionError.notConfigured }
-
-        let googleIdentity = session.user.identities?.first(where: { $0.provider == "google" })
-        let identityData = googleIdentity?.identityData
-        let googleEmail = identityData?["email"]?.stringValue ?? session.user.email
-        let googleSubject = identityData?["sub"]?.stringValue
-            ?? identityData?["id"]?.stringValue
-            ?? googleIdentity?.id
-
-        guard let googleEmail, let googleSubject else {
-            throw AppSessionError.googleIdentityMissing
-        }
-
-        let userID = session.user.id.uuidString
-        try await client
-            .from("users")
-            .upsert([
-                "id": .string(userID),
-                "google_email": .string(googleEmail),
-                "google_subject": .string(googleSubject)
-            ] as [String: AnyJSON], onConflict: "id", returning: .minimal)
-            .execute()
-
-        try await client
-            .from("auth_status")
-            .upsert([
-                "user_id": .string(userID),
-                "status": .string("connected"),
-                "mail_connected": .bool(true),
-                "calendar_connected": .bool(true)
-            ] as [String: AnyJSON], onConflict: "user_id", returning: .minimal)
-            .execute()
-    }
-
     private func normalizedAuthError(_ error: Error) -> Error {
         let diagnostic = [
             error.localizedDescription,
@@ -380,6 +371,7 @@ enum AppSessionError: LocalizedError {
     case googleProviderNotConfigured
     case manualLinkingDisabled
     case googleIdentityMissing
+    case googleAccountMismatch
     case rateLimited(seconds: Int?)
 
     var retryAfterSeconds: Int? {
@@ -405,6 +397,8 @@ enum AppSessionError: LocalizedError {
             return "Google 계정 연결이 비활성화되어 있어요. Supabase에서 Allow manual linking을 켜 주세요."
         case .googleIdentityMissing:
             return "Google 계정 정보를 확인하지 못했어요. 연동을 취소하고 다시 시도해 주세요."
+        case .googleAccountMismatch:
+            return "이 계정에 연결된 Google 계정으로 다시 선택해 주세요."
         case let .rateLimited(seconds):
             if let seconds {
                 return "인증 메일 요청이 잠시 제한되었어요. \(seconds)초 후 다시 시도해 주세요."

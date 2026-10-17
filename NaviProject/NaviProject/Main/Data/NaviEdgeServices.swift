@@ -2,9 +2,10 @@ import Foundation
 import Supabase
 
 // Edge Function / assistant-table clients for the Notion "API 명세" EDGE rows (`mail`,
-// `calendar`, `assistant`, `todo-ai`, `google-auth`). The functions aren't deployed yet, so
-// every call can fail with `EdgeError.unavailable`; the tab models then fall back to sample
-// data in DEBUG builds and show an error otherwise.
+// `calendar`, `assistant`, `todo-ai`, `google-auth`), all in `supabase/functions` (`assistant`,
+// `todo-ai`, and mail summaries call Claude there). A function or
+// route that isn't deployed fails with `EdgeError.unavailable`; the tab models then fall back to
+// sample data in DEBUG builds and show an error otherwise.
 //
 // Request/response field names follow the spec where it names them (`events[]` items,
 // `summary / reply_suggestion / suggested_todos`, `{error:{code,message}}`). Where the spec is
@@ -594,14 +595,26 @@ struct AssistantService: Sendable {
     }
 
     struct MessageRow: Decodable, Sendable {
+        /// Set on navi rows by the `assistant` function (user rows carry `{type, id}` instead).
+        struct Context: Decodable, Sendable {
+            let suggestedTodos: [String]?
+            let sources: String?
+
+            enum CodingKeys: String, CodingKey {
+                case sources
+                case suggestedTodos = "suggested_todos"
+            }
+        }
+
         let id: UUID
         let conversationId: UUID
         let role: String
         let content: String
+        let context: Context?
         let createdAt: Date?
 
         enum CodingKeys: String, CodingKey {
-            case id, role, content
+            case id, role, content, context
             case conversationId = "conversation_id"
             case createdAt = "created_at"
         }
@@ -638,7 +651,8 @@ struct AssistantService: Sendable {
         try await messages(in: conversationID).map(Self.chatMessage(from:))
     }
 
-    /// First line is navi's bold lead; the rest become the numbered lines.
+    /// First line is navi's bold lead; the rest become the numbered lines. `context` adds the
+    /// "할 일에 추가" plan lines and the "참고한 정보" footer.
     static func chatMessage(from row: MessageRow) -> ChatMessage {
         guard row.role != "user" else { return ChatMessage(id: row.id, role: .user, text: row.content) }
         var lines = row.content.components(separatedBy: .newlines)
@@ -646,7 +660,9 @@ struct AssistantService: Sendable {
             .filter { !$0.isEmpty }
         let lead = lines.isEmpty ? row.content : lines.removeFirst()
         let items = lines.map { $0.replacingOccurrences(of: #"^\d+\.\s*"#, with: "", options: .regularExpression) }
-        return ChatMessage(id: row.id, role: .navi, text: lead, items: items)
+        return ChatMessage(id: row.id, role: .navi, text: lead, items: items,
+                           suggestedTodos: row.context?.suggestedTodos ?? [],
+                           context: row.context?.sources)
     }
 
     // MARK: Wire calls
@@ -665,7 +681,7 @@ struct AssistantService: Sendable {
     private func messages(in conversationID: UUID) async throws -> [MessageRow] {
         try await table { try await client
             .from("assistant_messages")
-            .select("id, conversation_id, role, content, created_at")
+            .select("id, conversation_id, role, content, context, created_at")
             .eq("conversation_id", value: conversationID.uuidString)
             .order("created_at", ascending: true)
             .limit(200)
@@ -806,6 +822,17 @@ struct TodoAIService: Sendable {
 /// `google-auth` Edge Function.
 struct GoogleAuthService: Sendable {
     let edge: EdgeClient
+
+    /// `POST /google-auth/credentials` (204) right after the Google consent. The server keeps
+    /// the refresh token in Vault and sets `auth_status` from the scopes Google actually granted.
+    func registerCredentials(refreshToken: String, scopes: [String]) async throws {
+        struct Body: Encodable {
+            let provider_refresh_token: String
+            let granted_scopes: [String]
+        }
+        try await edge.send(.post, "google-auth/credentials",
+                            body: Body(provider_refresh_token: refreshToken, granted_scopes: scopes))
+    }
 
     /// `DELETE /google-auth/disconnect` (Idempotency-Key `google.disconnect`). Returns 202;
     /// the worker syncs every cache first so data stays as of the last sync.

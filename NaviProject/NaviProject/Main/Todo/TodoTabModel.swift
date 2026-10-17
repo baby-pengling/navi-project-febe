@@ -1,8 +1,8 @@
 import Combine
 import Foundation
 
-/// A "이번 주 미리 준비" recommendation. Real suggestions come from
-/// `POST /functions/v1/todo-ai/todos/suggest`, which doesn't exist yet, so these are mock.
+/// A "이번 주 미리 준비" recommendation from `POST /functions/v1/todo-ai/todos/suggest`
+/// (`TodoAIService`). DEBUG builds fall back to mock ones when the function isn't reachable.
 struct PrepSuggestion: Identifiable, Equatable {
     let id: UUID
     var title: String

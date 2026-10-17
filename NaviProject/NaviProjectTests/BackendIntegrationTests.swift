@@ -4,7 +4,8 @@ import Testing
 @testable import NaviProject
 
 /// Runs the app's Supabase data layer against a local Supabase stack (`supabase start` plus
-/// the migrations in `supabase/migrations`). Skipped unless the stack is configured:
+/// the migrations in `supabase/migrations`, and `supabase functions serve` for the Edge tests).
+/// Skipped unless the stack is configured:
 ///
 ///     TEST_RUNNER_NAVI_TEST_SUPABASE_URL=http://127.0.0.1:54321 \
 ///     TEST_RUNNER_NAVI_TEST_SUPABASE_ANON_KEY=<anon key from `supabase status`> \
@@ -50,7 +51,8 @@ struct BackendIntegrationTests {
 
     /// Until the Edge Functions are deployed, calls end in `EdgeError.unavailable` (the gateway's
     /// plain-text 404), which the tabs treat as "not connected yet".
-    @Test func undeployedEdgeFunctionIsUnavailable() async throws {
+    /// Needs `supabase functions serve` (mail / calendar / google-auth); assistant isn't built yet.
+    @Test func edgeFunctionsWithoutGoogle() async throws {
         let (client, _, _) = try await signUp()
         let services = EdgeServices(
             mail: MailService(edge: EdgeClient(client: client)),
@@ -59,10 +61,64 @@ struct BackendIntegrationTests {
             todoAI: TodoAIService(edge: EdgeClient(client: client)),
             googleAuth: GoogleAuthService(edge: EdgeClient(client: client))
         )
-        await #expect(throws: EdgeError.unavailable) { _ = try await services.mail.inbox() }
-        await #expect(throws: EdgeError.unavailable) { _ = try await services.calendar.todayBriefing() }
-        await #expect(throws: EdgeError.unavailable) { try await services.assistant.command("오늘 할 일 정리") }
-        await #expect(throws: EdgeError.unavailable) { try await services.googleAuth.disconnect() }
+        let notConnected = EdgeError.server(code: "GOOGLE_NOT_CONNECTED",
+                                            message: "Google 계정이 연결되어 있지 않아요. 설정에서 연결해 주세요.")
+        await #expect(throws: notConnected) { _ = try await services.mail.inbox() }
+        await #expect(throws: notConnected) { _ = try await services.calendar.todayBriefing() }
+        #expect(try await services.mail.drafts().isEmpty)
+        try await services.assistant.command("오늘 할 일 정리") // 202; the result lands on assistant_commands
+        await #expect {
+            try await services.googleAuth.registerCredentials(refreshToken: "", scopes: [])
+        } throws: { ($0 as? EdgeError).map { if case .server("GOOGLE_REFRESH_TOKEN_MISSING", _) = $0 { true } else { false } } ?? false }
+        try await services.googleAuth.disconnect()
+    }
+
+    /// `todo-ai/todos/suggest` answers for both weeks, rejects any other week, and keeps the
+    /// suggestions it returns usable (a title, a due date, only the user's own categories).
+    /// Without an LLM key the function answers `LLM_NOT_CONFIGURED` instead.
+    @Test func todoSuggestionsForTheWeek() async throws {
+        let (client, userID, _) = try await signUp()
+        let categoryID = try await insertCategory(client, userID: userID, name: "디자인", color: "#7165FF")
+        let category = NaviCategory(id: categoryID, name: "디자인", color: "#7165FF")
+        let edge = EdgeClient(client: client)
+        let todoAI = TodoAIService(edge: edge)
+        let fallbackDue = Date(timeIntervalSince1970: 0)
+
+        for week in ["current", "next"] {
+            do {
+                let suggestions = try await todoAI.suggestions(week: week, categories: [category], fallbackDue: fallbackDue)
+                for suggestion in suggestions {
+                    #expect(!suggestion.title.trimmingCharacters(in: .whitespaces).isEmpty)
+                    #expect(suggestion.category == nil || suggestion.category == category)
+                }
+            } catch let EdgeError.server(code, _) {
+                #expect(code == "LLM_NOT_CONFIGURED")
+            }
+        }
+
+        struct Body: Encodable { let week: String }
+        struct Response: Decodable {}
+        await #expect {
+            let _: Response = try await edge.call(.post, "todo-ai/todos/suggest", body: Body(week: "last"))
+        } throws: { ($0 as? EdgeError).map { if case .server("INVALID_WEEK", _) = $0 { true } else { false } } ?? false }
+    }
+
+    /// The reply row always arrives (Claude's answer, or an apology when the LLM key isn't set).
+    @Test func assistantChatStoresReply() async throws {
+        let (client, userID, _) = try await signUp()
+        let assistant = AssistantService(edge: EdgeClient(client: client), client: client, userID: userID)
+        let conversationID = UUID()
+        try await assistant.createConversation(conversationID)
+        try await assistant.send("오늘 뭐부터 할까?", in: conversationID)
+
+        var messages: [ChatMessage] = []
+        for _ in 0..<40 where messages.count < 2 {
+            try await Task.sleep(for: .milliseconds(250))
+            messages = try await assistant.chatMessages(in: conversationID)
+        }
+        #expect(messages.map(\.role) == [.user, .navi])
+        #expect(messages.first?.text == "오늘 뭐부터 할까?")
+        #expect(try await assistant.sessions().first?.title.isEmpty == false)
     }
 
     @Test func todosRoundTripThroughGetTodos() async throws {
