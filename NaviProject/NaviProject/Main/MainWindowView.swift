@@ -63,6 +63,7 @@ struct MainWindowView: View {
     @StateObject private var calendarModel: CalendarTabModel
     @StateObject private var mailModel: MailTabModel
     @StateObject private var chatModel: ChatTabModel
+    @StateObject private var promptModel: AssistantPromptModel
     @State private var selection: MainTab = .dashboard
     @State private var isSidebarCollapsed = false
     @State private var activeDialog: MainDialog?
@@ -81,7 +82,8 @@ struct MainWindowView: View {
         _settingsModel = StateObject(wrappedValue: settingsModel)
         let store = sessionStore.makeTodoStore()
         let services = sessionStore.makeEdgeServices()
-        _dashboardModel = StateObject(wrappedValue: DashboardModel(store: store, services: services))
+        let dashboardModel = DashboardModel(store: store, services: services)
+        _dashboardModel = StateObject(wrappedValue: dashboardModel)
         let todoModel = TodoTabModel(store: store, services: services)
         _todoModel = StateObject(wrappedValue: todoModel)
         _calendarModel = StateObject(wrappedValue: CalendarTabModel(store: store, services: services, todoModel: todoModel))
@@ -92,12 +94,18 @@ struct MainWindowView: View {
             senderName: settingsModel.name
         ))
         _chatModel = StateObject(wrappedValue: ChatTabModel(todoModel: todoModel, services: services))
+        _promptModel = StateObject(wrappedValue: AssistantPromptModel(assistant: services?.assistant) {
+            // Claude may have added todos from a prompt.
+            await todoModel.load()
+            await dashboardModel.load()
+        })
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             MainSidebar(selection: $selection, isCollapsed: $isSidebarCollapsed)
             content
+                .environmentObject(promptModel)
                 .padding(.horizontal, 10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }

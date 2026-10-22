@@ -8,7 +8,6 @@ struct MailTabView: View {
     /// Shows "메일을 보냈습니다" / "초안을 저장했습니다".
     let onResult: (MainDialog) -> Void
 
-    @State private var assistantText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -108,7 +107,8 @@ struct MailTabView: View {
             if let message = model.message(id) {
                 VStack(spacing: 10) {
                     MailDetailPanel(model: model, message: message)
-                    NaviPromptInput(prompt: "이 메일에서 할 일을 만들어 줘", text: $assistantText, onSubmit: model.sendAssistantPrompt)
+                    NaviAssistantPrompt(prompt: "이 메일에서 할 일을 만들어 줘",
+                                        context: .init(type: "mail_message", id: message.id))
                 }
             }
         case .compose(let draft):

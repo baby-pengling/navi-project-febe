@@ -92,9 +92,8 @@ struct NewEventDraft: Equatable {
 
 /// Dashboard data. Todos and categories come from Supabase through `store` (`get_todos` RPC,
 /// `todos` / category TABLEs, `reorder_todos` RPC). Important mail, today's events, and the
-/// command input go through the `mail` / `calendar` / `assistant` Edge Functions; until those
-/// are deployed, DEBUG builds keep sample mail and events. Without a store (previews)
-/// everything is sample data.
+/// command input go through the `mail` / `calendar` / `assistant` Edge Functions. Failures show
+/// as `errorMessage`; nothing is filled in with sample data.
 @MainActor
 final class DashboardModel: ObservableObject {
     @Published private(set) var todos: [DashboardTodo]
@@ -109,99 +108,16 @@ final class DashboardModel: ObservableObject {
     private let store: TodoStore?
     private let services: EdgeServices?
     private let calendar: Calendar
-    private var sampleMails: [DashboardMail] = []
-    private var sampleEvents: [DashboardEvent] = []
 
-    init(store: TodoStore? = nil, services: EdgeServices? = nil, now: Date = .now, calendar: Calendar = .current) {
+    init(store: TodoStore? = nil, services: EdgeServices? = nil, calendar: Calendar = .current) {
         self.store = store
         self.services = services
         self.calendar = calendar
-        let work = NaviCategory(id: UUID(), name: "업무", color: "#7165FF")
-        let research = NaviCategory(id: UUID(), name: "리서치", color: "#E5404F")
-        let personal = NaviCategory(id: UUID(), name: "개인", color: "#2EA366")
-        let navi = NaviCategory(id: UUID(), name: "navi", color: "#7165FF")
-        let team = NaviCategory(id: UUID(), name: "팀", color: "#E5404F")
-        let startOfToday = calendar.startOfDay(for: now)
-        func today(_ hour: Int, _ minute: Int = 0) -> Date {
-            calendar.date(bySettingHour: hour, minute: minute, second: 0, of: startOfToday) ?? now
-        }
-        func tomorrow(_ hour: Int, _ minute: Int = 0) -> Date {
-            calendar.date(byAdding: .day, value: 1, to: today(hour, minute)) ?? now
-        }
-
-        todoCategories = [work, research, personal]
-        calendarCategories = [navi, team]
-
-        todos = [
-            DashboardTodo(
-                id: UUID(), title: "Navi 회의록 초안 공유", isDone: false,
-                category: work, dueAt: nil, source: .mailSuggestion, subtaskProgress: nil, orderIndex: 1
-            ),
-            DashboardTodo(
-                id: UUID(), title: "디자인 리뷰 자료 정리", isDone: true,
-                category: work, dueAt: today(12), source: .manual,
-                subtaskProgress: SubtaskProgress(done: 3, total: 3), orderIndex: 2
-            ),
-            DashboardTodo(
-                id: UUID(), title: "사용자 인터뷰 질문지 작성", isDone: true,
-                category: research, dueAt: tomorrow(11), source: .calendarSuggestion,
-                subtaskProgress: SubtaskProgress(done: 3, total: 3), orderIndex: 3
-            ),
-            DashboardTodo(
-                id: UUID(), title: "주간 회고 작성", isDone: true,
-                category: nil, dueAt: tomorrow(12, 30), source: .manual,
-                subtaskProgress: SubtaskProgress(done: 3, total: 3), orderIndex: 4
-            ),
-        ]
-
-        if store != nil {
-            // Real rows arrive in `load()`.
-            todos = []
-            todoCategories = []
-            calendarCategories = []
-        }
-
-        importantMails = [
-            DashboardMail(
-                id: UUID(), sender: "Korean Air",
-                subject: "대한항공과 아시아나항공의 마일리지 통합 방안 안내",
-                snippet: "대한항공과 아시아나항공의 마일리지 통합 방안을 안내드립니다.",
-                receivedAt: today(8, 18)
-            ),
-            DashboardMail(
-                id: UUID(), sender: "김지민",
-                subject: "프로젝트 일정 변경 안내",
-                snippet: "안녕하세요. 이번 주 디자인 리뷰가 목요일 오후 4시로 변경되었습니다.",
-                receivedAt: today(8, 5)
-            ),
-            DashboardMail(
-                id: UUID(), sender: "GitHub",
-                subject: "[navi-project-febe] Pull request #3 review requested",
-                snippet: "sy-luvia12 requested your review on feat: implement app onboarding.",
-                receivedAt: today(7, 42)
-            ),
-        ]
-
-        todayEvents = [
-            DashboardEvent(
-                id: UUID(), title: "팀 스탠드업",
-                startAt: today(9), endAt: today(10), isAllDay: false, category: navi,
-                location: "우정정보관 205호"
-            ),
-            DashboardEvent(
-                id: UUID(), title: "사용자 인터뷰",
-                startAt: today(10, 30), endAt: today(11), isAllDay: false, category: team,
-                location: "Zoom"
-            ),
-        ]
-
-        if services != nil {
-            // Real mail and events arrive in `load()`.
-            sampleMails = importantMails
-            sampleEvents = todayEvents
-            importantMails = []
-            todayEvents = []
-        }
+        todos = []
+        importantMails = []
+        todayEvents = []
+        todoCategories = []
+        calendarCategories = []
     }
 
     var completedTodoCount: Int {
@@ -210,6 +126,7 @@ final class DashboardModel: ObservableObject {
 
     /// Loads today's todos, both category lists, important mail, and today's events.
     func load() async {
+        errorMessage = nil
         async let briefing: Void = loadBriefing()
         await loadTodos()
         await briefing
@@ -223,17 +140,21 @@ final class DashboardModel: ObservableObject {
         do {
             importantMails = try await mails
         } catch {
-            #if DEBUG
-            if error as? EdgeError == .unavailable { importantMails = sampleMails }
-            #endif
+            importantMails = []
+            report(error, "중요 메일을 불러오지 못했어요.")
         }
         do {
             todayEvents = try await events
         } catch {
-            #if DEBUG
-            if error as? EdgeError == .unavailable { todayEvents = sampleEvents }
-            #endif
+            todayEvents = []
+            report(error, "오늘 일정을 불러오지 못했어요.")
         }
+    }
+
+    /// Not having connected Google yet is shown by the connect cards, not as an error.
+    private func report(_ error: Error, _ message: String) {
+        if case .server("GOOGLE_NOT_CONNECTED", _) = error as? EdgeError { return }
+        errorMessage = message
     }
 
     private func loadTodos() async {
@@ -247,7 +168,6 @@ final class DashboardModel: ObservableObject {
             self.todos = try await todos
             self.todoCategories = try await todoCategories
             self.calendarCategories = try await calendarCategories
-            errorMessage = nil
         } catch {
             errorMessage = "할 일을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
         }
@@ -381,17 +301,6 @@ final class DashboardModel: ObservableObject {
     }
 
     /// `POST assistant/command` (202; results arrive on `assistant_commands`).
-    func sendCommand(_ text: String) {
-        guard let assistant = services?.assistant else { return }
-        Task {
-            do {
-                try await assistant.command(text)
-            } catch {
-                errorMessage = error as? EdgeError == .unavailable ? "AI 비서가 아직 연결되지 않았어요." : "요청을 보내지 못했어요."
-            }
-        }
-    }
-
     private func nextHour(after date: Date) -> Date {
         let hourStart = calendar.dateInterval(of: .hour, for: date)?.start ?? date
         return calendar.date(byAdding: .hour, value: 1, to: hourStart) ?? date
