@@ -46,9 +46,8 @@ struct MailDraft: Identifiable, Equatable {
 }
 
 /// State for the "메일" tab (Figma "03 Final Prototype › 08 메일"). Messages, labels, drafts,
-/// sending, and AI summaries go through the `mail` Edge Function (`MailService`); until it is
-/// deployed, DEBUG builds fall back to sample messages. "할 일에 추가" creates a real todo
-/// through the todo tab's model.
+/// sending, and AI summaries go through the `mail` Edge Function (`MailService`); failures show
+/// as `errorMessage`. "할 일에 추가" creates a real todo through the todo tab's model.
 @MainActor
 final class MailTabModel: ObservableObject {
     enum Filter: Hashable {
@@ -93,12 +92,12 @@ final class MailTabModel: ObservableObject {
     private let services: EdgeServices?
     private var loadedSummaryIDs: Set<UUID> = []
 
-    init(todoModel: TodoTabModel, services: EdgeServices? = nil, senderAddress: String, senderName: String, now: Date = .now) {
+    init(todoModel: TodoTabModel, services: EdgeServices? = nil, senderAddress: String, senderName: String) {
         self.todoModel = todoModel
         self.services = services
         self.senderAddress = senderAddress.isEmpty ? "me@navi.app" : senderAddress
         self.senderName = senderName
-        messages = services == nil ? Self.mockMessages(now: now) : []
+        messages = []
     }
 
     /// Loads messages (with Gmail labels as categories) and drafts.
@@ -121,20 +120,8 @@ final class MailTabModel: ObservableObject {
             drafts = (try? await mail.drafts()) ?? drafts
             errorMessage = nil
         } catch {
-            fallBack(error, message: "메일을 불러오지 못했어요.")
+            errorMessage = (error as? EdgeError)?.errorDescription ?? "메일을 불러오지 못했어요."
         }
-    }
-
-    /// DEBUG keeps the sample inbox while the Edge Function isn't deployed.
-    private func fallBack(_ error: Error, message: String) {
-        #if DEBUG
-        if error as? EdgeError == .unavailable {
-            if messages.isEmpty { messages = Self.mockMessages(now: .now) }
-            errorMessage = nil
-            return
-        }
-        #endif
-        errorMessage = message
     }
 
     var filterTabs: [Filter] {
@@ -299,17 +286,6 @@ final class MailTabModel: ObservableObject {
         return fallback
     }
 
-    func sendAssistantPrompt(_ text: String) {
-        guard let assistant = services?.assistant else { return }
-        Task {
-            do {
-                try await assistant.command(text)
-            } catch {
-                errorMessage = error as? EdgeError == .unavailable ? "AI 비서가 아직 연결되지 않았어요." : "요청을 보내지 못했어요."
-            }
-        }
-    }
-
     // MARK: - Formatting
 
     /// "2026년 9월 16일 (4일 전)"
@@ -322,43 +298,5 @@ final class MailTabModel: ObservableObject {
     /// "08:18" today, "9월 16일" otherwise.
     static func listTime(_ date: Date) -> String {
         Calendar.current.isDateInToday(date) ? TodoTabModel.format(date, "HH:mm") : TodoTabModel.format(date, "M월 d일")
-    }
-
-    // MARK: - Mock
-
-    private static func mockMessages(now: Date) -> [MailMessage] {
-        let calendar = Calendar.current
-        func at(_ dayOffset: Int, _ hour: Int, _ minute: Int) -> Date {
-            let day = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: now)) ?? now
-            return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
-        }
-        return [
-            MailMessage(
-                id: UUID(), sender: .init(name: "김지민", email: "jimin@example.com"),
-                subject: "프로젝트 일정 변경 안내",
-                body: "안녕하세요. 이번 주 디자인 리뷰가 목요일 오후 4시로 변경되었습니다.\n참석 가능 여부를 오늘 안에 알려주세요.",
-                receivedAt: at(0, 8, 18), isStarred: true, category: "답장 대기",
-                summary: [("디자인 리뷰", "목요일 16:00"), (nil, "오늘 안에 참석 여부 회신 필요")],
-                suggestedTodo: "오늘 18:00까지 참석 여부 회신",
-                replyDraft: "지민님, 안녕하세요.\n\n목요일 오후 4시 디자인 리뷰에 참석 가능합니다.\n변경된 일정 확인했습니다. 검토할 자료가 있다면 미리 공유 부탁드립니다.\n\n감사합니다."
-            ),
-            MailMessage(
-                id: UUID(), sender: .init(name: "Korean Air", email: "news@koreanair.com"),
-                subject: "대한항공과 아시아나항공의 마일리지 통합 방안 안내",
-                body: "KOREAN AIR 대한항공과 아시아나항공의 마일리지 통합 방안 안내 - 2026년 12월 17일 대한항공・아시아나항공 통합일에 아시아나 마일리지는 스카이패스 계정으로 자동 이관됩니다.",
-                receivedAt: at(0, 7, 2), isStarred: false, category: "참고용",
-                summary: [("마일리지 통합", "12월 17일 스카이패스로 자동 이관"), (nil, "별도 조치 필요 없음")],
-                suggestedTodo: nil, replyDraft: nil
-            ),
-            MailMessage(
-                id: UUID(), sender: .init(name: "학생지원팀", email: "scholarship@korea.ac.kr"),
-                subject: "[장학] 2학기 장학금 서류 제출 안내",
-                body: "2학기 장학금 신청자는 금요일 오전 10시까지 서류를 PDF로 제출해 주세요. 기한 이후 제출분은 접수되지 않습니다.",
-                receivedAt: at(-1, 17, 40), isStarred: false, category: "요청·승인",
-                summary: [("마감", "금요일 10:00"), (nil, "서류는 PDF로 제출")],
-                suggestedTodo: "장학금 서류 PDF 확인",
-                replyDraft: "안녕하세요. 안내해 주신 서류를 기한 내 제출하겠습니다.\n\n감사합니다."
-            ),
-        ]
     }
 }

@@ -12,7 +12,6 @@ struct DashboardView: View {
     /// Opens the mail / calendar tab's Google connect flow.
     let onConnect: (ServiceConnectFlow.Service) -> Void
 
-    @State private var command = ""
     @State private var rightPanel: RightPanel = .schedule
 
     /// What the right column shows. Adding a todo or an event swaps it in place of "오늘 일정",
@@ -280,7 +279,7 @@ struct DashboardView: View {
     // MARK: - Command input
 
     private var commandInput: some View {
-        NaviPromptInput(prompt: "오늘 할 일을 정리해줘", text: $command, onSubmit: model.sendCommand)
+        NaviAssistantPrompt(prompt: "오늘 할 일을 정리해줘")
     }
 }
 
@@ -338,6 +337,7 @@ private struct DashboardMailRow: View {
         onSelectTab: { _ in },
         onConnect: { _ in }
     )
+    .environmentObject(AssistantPromptModel(assistant: nil))
     .padding(.horizontal, 10)
     .background(NaviTheme.canvas)
 }
@@ -354,6 +354,7 @@ private struct DashboardMailRow: View {
         onSelectTab: { _ in },
         onConnect: { _ in }
     )
+    .environmentObject(AssistantPromptModel(assistant: nil))
     .padding(.horizontal, 10)
     .background(NaviTheme.canvas)
 }

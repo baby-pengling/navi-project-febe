@@ -31,9 +31,8 @@ struct ChatSession: Identifiable, Equatable {
 
 /// State for the "채팅" tab (Figma "03 Final Prototype › 11 - 채팅"). Conversations are topic
 /// sessions in `assistant_conversations`; a question goes to the `assistant` Edge Function and
-/// the reply arrives as an `assistant_messages` insert over Realtime. Until the backend is
-/// deployed, DEBUG builds fall back to sample sessions. "할 일에 추가" creates real todos
-/// through the todo tab's model.
+/// the reply arrives as an `assistant_messages` insert over Realtime. "할 일에 추가" creates real
+/// todos through the todo tab's model.
 @MainActor
 final class ChatTabModel: ObservableObject {
     @Published private(set) var sessions: [ChatSession]
@@ -50,11 +49,10 @@ final class ChatTabModel: ObservableObject {
     private let assistant: AssistantService?
     private var subscription: Task<Void, Never>?
 
-    init(todoModel: TodoTabModel, services: EdgeServices? = nil, now: Date = .now) {
+    init(todoModel: TodoTabModel, services: EdgeServices? = nil) {
         self.todoModel = todoModel
         assistant = services?.assistant
-        sessions = services == nil ? Self.mockSessions(now: now) : []
-        selectedID = sessions.first?.id
+        sessions = []
     }
 
     /// Loads recent sessions and opens the newest one.
@@ -75,15 +73,7 @@ final class ChatTabModel: ObservableObject {
             if selectedID == nil || selectedSession == nil { selectedID = visibleSessions.first?.id }
             else { selectionChanged() }
         } catch {
-            #if DEBUG
-            // The assistant tables / function aren't deployed yet: keep the sample sessions.
-            if sessions.isEmpty {
-                sessions = Self.mockSessions(now: .now)
-                selectedID = sessions.first?.id
-            }
-            #else
             errorMessage = "대화 목록을 불러오지 못했어요."
-            #endif
         }
     }
 
@@ -252,46 +242,5 @@ final class ChatTabModel: ObservableObject {
     private static func title(for text: String) -> String {
         let line = text.components(separatedBy: .newlines).first ?? text
         return line.count > 20 ? String(line.prefix(20)) + "…" : line
-    }
-
-    // MARK: - Mock
-
-    private static func mockSessions(now: Date) -> [ChatSession] {
-        let calendar = Calendar.current
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: now) ?? now
-        let earlier = calendar.date(byAdding: .day, value: -25, to: now) ?? now
-        let plan = [
-            "12:00 전 — 사용자 인터뷰 질문 정리",
-            "16:30 전 — 디자인 리뷰 반영",
-            "18:00 전 — 일정 변경 메일에 회신",
-            "여유 시간 — 인턴십 서류 준비",
-        ]
-        return [
-            ChatSession(id: UUID(), title: "오늘 일정 우선순위", updatedAt: now, messages: [
-                ChatMessage(id: UUID(), role: .user, text: "오늘 일정과 할 일을 보고 우선순위를 정리해 줘."),
-                ChatMessage(
-                    id: UUID(), role: .navi, text: "오늘은 다음 순서로 진행하는 것을 추천해요.",
-                    items: plan,
-                    suggestedTodos: plan,
-                    context: "오늘 일정 3개 · 중요 메일 1개 · 미완료 할 일 3개"
-                ),
-            ]),
-            ChatSession(id: UUID(), title: "메일 답장 도와줘", updatedAt: yesterday, messages: [
-                ChatMessage(id: UUID(), role: .user, text: "김지민님 메일에 보낼 답장 초안 써 줘."),
-                ChatMessage(
-                    id: UUID(), role: .navi, text: "목요일 디자인 리뷰 참석 회신 초안이에요.",
-                    items: ["목요일 오후 4시 디자인 리뷰에 참석 가능합니다.", "검토할 자료가 있다면 미리 공유 부탁드립니다."],
-                    context: "메일 1개"
-                ),
-            ]),
-            ChatSession(id: UUID(), title: "이번 주 일정 요약", updatedAt: earlier, messages: [
-                ChatMessage(id: UUID(), role: .user, text: "이번 주 일정 요약해 줘."),
-                ChatMessage(
-                    id: UUID(), role: .navi, text: "이번 주에는 일정이 4개 있어요.",
-                    items: ["월 10:00 — 팀 스탠드업", "수 14:00 — 사용자 인터뷰", "목 16:00 — 디자인 리뷰", "금 10:00 — 장학금 서류 마감"],
-                    context: "이번 주 일정 4개"
-                ),
-            ]),
-        ]
     }
 }

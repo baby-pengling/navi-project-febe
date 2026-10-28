@@ -1,8 +1,8 @@
 import Combine
 import Foundation
 
-/// A "이번 주 미리 준비" recommendation. Real suggestions come from
-/// `POST /functions/v1/todo-ai/todos/suggest`, which doesn't exist yet, so these are mock.
+/// A "이번 주 미리 준비" recommendation from `POST /functions/v1/todo-ai/todos/suggest`
+/// (`TodoAIService`).
 struct PrepSuggestion: Identifiable, Equatable {
     let id: UUID
     var title: String
@@ -18,7 +18,7 @@ struct PrepSuggestion: Identifiable, Equatable {
 }
 
 /// State for the "할 일" tab (Figma "03 Final Prototype › 10 - 할 일"). Todos, categories, and
-/// every edit go through `TodoStore` (Supabase); without a store it runs on mock data.
+/// every edit go through `TodoStore` (Supabase); without a store (previews) edits stay in memory.
 @MainActor
 final class TodoTabModel: ObservableObject {
     enum Filter: CaseIterable, Hashable {
@@ -87,20 +87,14 @@ final class TodoTabModel: ObservableObject {
     private let services: EdgeServices?
     private var calendar: Calendar
 
-    init(store: TodoStore? = nil, services: EdgeServices? = nil, now: Date = .now, calendar: Calendar = .current) {
+    init(store: TodoStore? = nil, services: EdgeServices? = nil, calendar: Calendar = .current) {
         self.store = store
         self.services = services
         var calendar = calendar
         calendar.firstWeekday = 1 // Figma weeks run 일–토.
         self.calendar = calendar
-        if store == nil {
-            let mock = Self.mockData(now: now, calendar: calendar)
-            todos = mock.todos
-            categories = mock.categories
-        } else {
-            todos = []
-            categories = []
-        }
+        todos = []
+        categories = []
     }
 
     // MARK: - Loading
@@ -408,7 +402,7 @@ final class TodoTabModel: ObservableObject {
         panel = .prep
         guard suggestions.isEmpty else { return }
         guard let todoAI = services?.todoAI else {
-            suggestions = Self.mockSuggestions(now: now, calendar: calendar, categories: categories)
+            errorMessage = "로그인 후 추천 할 일을 받을 수 있어요."
             return
         }
         let isSunday = calendar.component(.weekday, from: now) == 1
@@ -421,13 +415,7 @@ final class TodoTabModel: ObservableObject {
                                                            categories: categories, fallbackDue: fallbackDue)
                 errorMessage = nil
             } catch {
-                #if DEBUG
-                if error as? EdgeError == .unavailable {
-                    suggestions = Self.mockSuggestions(now: now, calendar: calendar, categories: categories)
-                    return
-                }
-                #endif
-                errorMessage = "추천 할 일을 불러오지 못했어요."
+                errorMessage = (error as? EdgeError)?.errorDescription ?? "추천 할 일을 불러오지 못했어요."
             }
         }
     }
@@ -473,17 +461,6 @@ final class TodoTabModel: ObservableObject {
     }
 
     /// `POST assistant/command` (202; results arrive on `assistant_commands`).
-    func sendAssistantPrompt(_ text: String) {
-        guard let assistant = services?.assistant else { return }
-        Task {
-            do {
-                try await assistant.command(text)
-            } catch {
-                errorMessage = error as? EdgeError == .unavailable ? "AI 비서가 아직 연결되지 않았어요." : "요청을 보내지 못했어요."
-            }
-        }
-    }
-
     // MARK: - Helpers
 
     private func refreshProgress(at index: Int) {
@@ -521,61 +498,5 @@ final class TodoTabModel: ObservableObject {
         formatter.locale = Locale(identifier: "ko_KR")
         formatter.dateFormat = pattern
         return formatter.string(from: date)
-    }
-
-    // MARK: - Mock data (previews, no session)
-
-    private static func mockData(now: Date, calendar: Calendar) -> (todos: [DashboardTodo], categories: [NaviCategory]) {
-        let work = NaviCategory(id: UUID(), name: "업무", color: "#7165FF")
-        let study = NaviCategory(id: UUID(), name: "공부", color: "#2EA366")
-        let personal = NaviCategory(id: UUID(), name: "개인", color: "#3366CC")
-        let today = calendar.startOfDay(for: now)
-        func at(_ dayOffset: Int, _ hour: Int, _ minute: Int = 0) -> Date {
-            let day = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
-            return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
-        }
-        let laterThisWeek = min(2, 6 - (calendar.component(.weekday, from: now) - 1))
-        func todo(_ title: String, _ due: Date?, _ category: NaviCategory?, done: Bool = false, order: Double,
-                  subtasks: [TodoSubtask] = [], source: DashboardTodo.Source = .manual) -> DashboardTodo {
-            DashboardTodo(
-                id: UUID(), title: title, isDone: done, category: category, dueAt: due, source: source,
-                subtaskProgress: subtasks.isEmpty ? nil : SubtaskProgress(done: subtasks.filter(\.isDone).count, total: subtasks.count),
-                orderIndex: order, subtasks: subtasks, day: due.map { calendar.startOfDay(for: $0) } ?? today
-            )
-        }
-        let todos = [
-            todo("Navi 회의록 초안 공유", at(-1, 18), work, order: 1, source: .mailSuggestion),
-            todo("디자인 리뷰 피드백 반영", at(0, 9), work, order: 2, subtasks: [
-                TodoSubtask(id: UUID(), title: "검토 의견 모으기", isDone: true),
-                TodoSubtask(id: UUID(), title: "수정 우선순위 정하기", isDone: true),
-                TodoSubtask(id: UUID(), title: "최종안 팀에 공유", isDone: false),
-            ]),
-            todo("HCI 과제 제출", at(0, 17), study, order: 3),
-            todo("장보기", at(0, 20), personal, order: 4),
-            todo("발표 자료 검토", at(laterThisWeek, 17), work, order: 5),
-            todo("주간 회고 작성", at(laterThisWeek, 21), work, done: true, order: 6, subtasks: [
-                TodoSubtask(id: UUID(), title: "이번 주 한 일 정리", isDone: true),
-                TodoSubtask(id: UUID(), title: "다음 주 목표", isDone: true),
-                TodoSubtask(id: UUID(), title: "회고 공유", isDone: true),
-            ]),
-            todo("읽을 책 고르기", nil, personal, order: 7),
-        ]
-        return (todos, [work, study, personal])
-    }
-
-    private static func mockSuggestions(now: Date, calendar: Calendar, categories: [NaviCategory]) -> [PrepSuggestion] {
-        let today = calendar.startOfDay(for: now)
-        func at(_ dayOffset: Int, _ hour: Int) -> Date {
-            let day = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
-            return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day
-        }
-        return [
-            PrepSuggestion(id: UUID(), title: "발표 자료 검토", dueAt: at(2, 17), category: categories.first,
-                           reason: "발표 2일 전", effort: "약 40분", isSelected: false),
-            PrepSuggestion(id: UUID(), title: "HCI 챕터 4 복습", dueAt: at(3, 18), category: categories.dropFirst().first ?? categories.first,
-                           reason: "시험 3일 전", effort: "약 60분"),
-            PrepSuggestion(id: UUID(), title: "장학금 서류 PDF 확인", dueAt: at(4, 10), category: categories.last,
-                           reason: "마감 전날", effort: "약 15분", isUrgent: true),
-        ]
     }
 }

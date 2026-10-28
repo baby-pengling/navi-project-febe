@@ -2,9 +2,9 @@ import Foundation
 import Supabase
 
 // Edge Function / assistant-table clients for the Notion "API 명세" EDGE rows (`mail`,
-// `calendar`, `assistant`, `todo-ai`, `google-auth`). The functions aren't deployed yet, so
-// every call can fail with `EdgeError.unavailable`; the tab models then fall back to sample
-// data in DEBUG builds and show an error otherwise.
+// `calendar`, `assistant`, `todo-ai`, `google-auth`), all in `supabase/functions` (`assistant`,
+// `todo-ai`, and mail summaries call Claude there). A function or
+// route that isn't deployed fails with `EdgeError.unavailable`; the tab models show the error.
 //
 // Request/response field names follow the spec where it names them (`events[]` items,
 // `summary / reply_suggestion / suggested_todos`, `{error:{code,message}}`). Where the spec is
@@ -161,8 +161,7 @@ struct EdgeClient: Sendable {
 }
 
 extension AppSessionStore {
-    /// Edge / assistant services for the signed-in user, or `nil` without a session (the tabs
-    /// then show sample data).
+    /// Edge / assistant services for the signed-in user, or `nil` without a session.
     func makeEdgeServices() -> EdgeServices? {
         guard let client, let userID = session?.user.id else { return nil }
         let edge = EdgeClient(client: client)
@@ -594,14 +593,26 @@ struct AssistantService: Sendable {
     }
 
     struct MessageRow: Decodable, Sendable {
+        /// Set on navi rows by the `assistant` function (user rows carry `{type, id}` instead).
+        struct Context: Decodable, Sendable {
+            let suggestedTodos: [String]?
+            let sources: String?
+
+            enum CodingKeys: String, CodingKey {
+                case sources
+                case suggestedTodos = "suggested_todos"
+            }
+        }
+
         let id: UUID
         let conversationId: UUID
         let role: String
         let content: String
+        let context: Context?
         let createdAt: Date?
 
         enum CodingKeys: String, CodingKey {
-            case id, role, content
+            case id, role, content, context
             case conversationId = "conversation_id"
             case createdAt = "created_at"
         }
@@ -638,7 +649,8 @@ struct AssistantService: Sendable {
         try await messages(in: conversationID).map(Self.chatMessage(from:))
     }
 
-    /// First line is navi's bold lead; the rest become the numbered lines.
+    /// First line is navi's bold lead; the rest become the numbered lines. `context` adds the
+    /// "할 일에 추가" plan lines and the "참고한 정보" footer.
     static func chatMessage(from row: MessageRow) -> ChatMessage {
         guard row.role != "user" else { return ChatMessage(id: row.id, role: .user, text: row.content) }
         var lines = row.content.components(separatedBy: .newlines)
@@ -646,7 +658,9 @@ struct AssistantService: Sendable {
             .filter { !$0.isEmpty }
         let lead = lines.isEmpty ? row.content : lines.removeFirst()
         let items = lines.map { $0.replacingOccurrences(of: #"^\d+\.\s*"#, with: "", options: .regularExpression) }
-        return ChatMessage(id: row.id, role: .navi, text: lead, items: items)
+        return ChatMessage(id: row.id, role: .navi, text: lead, items: items,
+                           suggestedTodos: row.context?.suggestedTodos ?? [],
+                           context: row.context?.sources)
     }
 
     // MARK: Wire calls
@@ -665,7 +679,7 @@ struct AssistantService: Sendable {
     private func messages(in conversationID: UUID) async throws -> [MessageRow] {
         try await table { try await client
             .from("assistant_messages")
-            .select("id, conversation_id, role, content, created_at")
+            .select("id, conversation_id, role, content, context, created_at")
             .eq("conversation_id", value: conversationID.uuidString)
             .order("created_at", ascending: true)
             .limit(200)
@@ -691,11 +705,89 @@ struct AssistantService: Sendable {
                             body: Body(content: text), idempotent: true)
     }
 
-    /// `POST /assistant/command` from a tab's prompt input. Returns 202; results arrive on
-    /// `assistant_commands`.
-    func command(_ text: String) async throws {
-        struct Body: Encodable { let text: String }
-        try await edge.send(.post, "assistant/command", body: Body(text: text), idempotent: true)
+    /// What a tab's prompt is about (`context` of `assistant/command`): a row the user owns.
+    struct Attachment: Encodable, Equatable, Sendable {
+        /// "mail_message" / "calendar_event" / "todo"
+        let type: String
+        let id: UUID
+    }
+
+    /// An `assistant_commands` row Claude has finished with.
+    struct CommandResult: Equatable, Sendable {
+        enum Status: Equatable, Sendable {
+            case completed
+            /// A mail draft or calendar change waits for the user.
+            case awaitingApproval
+            case failed(code: String?)
+        }
+
+        let status: Status
+        /// navi's answer: lead line, then numbered lines.
+        let text: String
+        /// Tools Claude ran (`create_todo`, `create_mail_draft`, `propose_calendar_event`).
+        let tools: [String]
+    }
+
+    struct CommandRow: Decodable, Sendable {
+        struct ToolCall: Decodable, Sendable { let tool: String }
+
+        let status: String
+        let resultText: String?
+        let errorCode: String?
+        let toolCalls: [ToolCall]?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case resultText = "result_text"
+            case errorCode = "error_code"
+            case toolCalls = "tool_calls"
+        }
+
+        /// `nil` while Claude is still working (`received` / `running`).
+        var result: CommandResult? {
+            let tools = (toolCalls ?? []).map(\.tool)
+            let text = resultText ?? ""
+            switch status {
+            case "completed": return CommandResult(status: .completed, text: text, tools: tools)
+            case "awaiting_approval": return CommandResult(status: .awaitingApproval, text: text, tools: tools)
+            case "failed": return CommandResult(status: .failed(code: errorCode), text: text, tools: tools)
+            default: return nil
+            }
+        }
+    }
+
+    /// `POST /assistant/command` from a tab's prompt input. Returns the command id right away
+    /// (202); Claude's result lands on that `assistant_commands` row.
+    func command(_ text: String, context: Attachment? = nil) async throws -> UUID {
+        struct Body: Encodable {
+            let text: String
+            let context: Attachment?
+        }
+        struct Response: Decodable {
+            let commandId: UUID
+            enum CodingKeys: String, CodingKey { case commandId = "command_id" }
+        }
+        let response: Response = try await edge.call(.post, "assistant/command",
+                                                     body: Body(text: text, context: context), idempotent: true)
+        return response.commandId
+    }
+
+    /// Polls the command's row until Claude is done (or `timeout` passes).
+    func commandResult(_ id: UUID, timeout: Duration = .seconds(90)) async throws -> CommandResult {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            let row: CommandRow = try await table { try await client
+                .from("assistant_commands")
+                .select("status, result_text, error_code, tool_calls")
+                .eq("id", value: id.uuidString)
+                .single()
+                .execute()
+                .value
+            }
+            if let result = row.result { return result }
+            try await Task.sleep(for: .seconds(1))
+        }
+        throw EdgeError.server(code: "TIMEOUT", message: "navi가 아직 처리 중이에요. 잠시 후 다시 확인해 주세요.")
     }
 
     /// Streams new messages of one conversation until the task is cancelled.
@@ -806,6 +898,17 @@ struct TodoAIService: Sendable {
 /// `google-auth` Edge Function.
 struct GoogleAuthService: Sendable {
     let edge: EdgeClient
+
+    /// `POST /google-auth/credentials` (204) right after the Google consent. The server keeps
+    /// the refresh token in Vault and sets `auth_status` from the scopes Google actually granted.
+    func registerCredentials(refreshToken: String, scopes: [String]) async throws {
+        struct Body: Encodable {
+            let provider_refresh_token: String
+            let granted_scopes: [String]
+        }
+        try await edge.send(.post, "google-auth/credentials",
+                            body: Body(provider_refresh_token: refreshToken, granted_scopes: scopes))
+    }
 
     /// `DELETE /google-auth/disconnect` (Idempotency-Key `google.disconnect`). Returns 202;
     /// the worker syncs every cache first so data stays as of the last sync.
