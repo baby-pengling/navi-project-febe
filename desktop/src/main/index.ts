@@ -109,6 +109,36 @@ ipcMain.handle('secure-store:remove', (_e, key: string) => {
   writeStore(rest)
 })
 
+// MARK: - Edge Functions
+
+/// The Supabase gateway answers the CORS preflight of an Edge Function with 401, so the
+/// renderer can't call them directly (the Swift app never sends a preflight). The renderer's
+/// `fetch` for `/functions/v1/` goes through here instead.
+interface EdgeRequest {
+  url: string
+  method: string
+  headers: Record<string, string>
+  body: ArrayBuffer | null
+}
+
+ipcMain.handle('edge:fetch', async (_e, request: EdgeRequest) => {
+  const url = new URL(request.url)
+  if (url.protocol !== 'https:' || !url.hostname.endsWith('.supabase.co') || !url.pathname.startsWith('/functions/v1/')) {
+    throw new Error('Not an Edge Function URL')
+  }
+  const response = await net.fetch(url.toString(), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body ?? undefined
+  })
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    headers: [...response.headers.entries()],
+    body: await response.arrayBuffer()
+  }
+})
+
 // MARK: - Windows
 
 function loadRenderer(window: BrowserWindow, hash = ''): void {

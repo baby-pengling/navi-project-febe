@@ -14,6 +14,13 @@ const api = {
     set: (key: string, value: string): Promise<void> => ipcRenderer.invoke('secure-store:set', key, value),
     remove: (key: string): Promise<void> => ipcRenderer.invoke('secure-store:remove', key)
   },
+  edgeFetch: (request: {
+    url: string
+    method: string
+    headers: Record<string, string>
+    body: ArrayBuffer | null
+  }): Promise<{ status: number; statusText: string; headers: [string, string][]; body: ArrayBuffer }> =>
+    ipcRenderer.invoke('edge:fetch', request),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:open-external', url),
   onDeepLink: (listener: (url: string) => void) => listen('deep-link', listener),
   setMinimumSize: (width: number, height: number) => ipcRenderer.send('window:set-min-size', { width, height }),
