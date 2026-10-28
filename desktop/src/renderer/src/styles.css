@@ -1,0 +1,170 @@
+@import './fonts/fonts.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: 'Pretendard', -apple-system, 'Segoe UI', sans-serif;
+  color: #19191c;
+  background: #ececec;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+body.widget {
+  background: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+  user-select: text;
+}
+
+textarea {
+  resize: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #75737a;
+}
+
+/* SwiftUI `.scrollIndicators(.hidden)` */
+.scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.selectable {
+  user-select: text;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* A template SVG tinted by `currentColor` (SwiftUI template rendering). */
+.navi-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+/* ProgressView */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(113, 101, 255, 0.2);
+  border-top-color: #7165ff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+.spinner.small {
+  width: 12px;
+  height: 12px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.15s ease-in-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Popover menus (SwiftUI `Menu`) */
+.menu {
+  position: absolute;
+  z-index: 50;
+  min-width: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 5px;
+  background: #fff;
+  border: 1px solid #dbd9e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+.menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.menu button:hover {
+  background: #7165ff;
+  color: #fff;
+}
+
+.popover {
+  position: absolute;
+  z-index: 50;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #dbd9e0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+.hover-dim:hover {
+  opacity: 0.85;
+}
+
+.drop-target {
+  outline: 2px dashed #7165ff;
+  outline-offset: 2px;
+  border-radius: 6px;
+}

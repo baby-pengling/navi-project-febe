@@ -1,0 +1,19 @@
+appId: app.navi.desktop
+productName: Navi
+directories:
+  buildResources: resources
+  output: release
+files:
+  - out/**
+  - package.json
+protocols:
+  - name: Navi
+    schemes: [navi]
+mac:
+  category: public.app-category.productivity
+  target: [dmg]
+win:
+  target: [nsis]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

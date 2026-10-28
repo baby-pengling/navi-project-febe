@@ -1,0 +1,132 @@
+@font-face {
+  font-family: 'Bagel Fat One';
+  src: url('./BagelFatOne-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-1Thin.ttf') format('truetype');
+  font-weight: 100;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-2ExtraLight.ttf') format('truetype');
+  font-weight: 200;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-3Light.ttf') format('truetype');
+  font-weight: 300;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-4Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-5Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-6SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-7Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-8ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./Paperlogy-9Black.ttf') format('truetype');
+  font-weight: 900;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-Black.otf') format('opentype');
+  font-weight: 900;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-ExtraBold.otf') format('opentype');
+  font-weight: 800;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-ExtraLight.otf') format('opentype');
+  font-weight: 200;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-Light.otf') format('opentype');
+  font-weight: 300;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-SemiBold.otf') format('opentype');
+  font-weight: 600;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./Pretendard-Thin.otf') format('opentype');
+  font-weight: 100;
+  font-display: block;
+}
