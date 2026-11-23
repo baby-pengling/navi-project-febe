@@ -137,20 +137,24 @@ export class MailTabModel extends Observable {
   open(id: string): void {
     this.set('panel', { kind: 'detail', id })
     const mail = this.services?.mail
-    if (!mail || this.loadedSummaryIDs.has(id)) return
+    if (!mail || this.loadingSummaryIDs.has(id) || (this.loadedSummaryIDs.has(id) && this.message(id)?.bodyHtml)) return
     this.loadingSummaryIDs = new Set(this.loadingSummaryIDs).add(id)
     this.changed()
     ;(async () => {
       try {
         await mail.setRead(id, true).catch(() => {})
-        const body = await mail.body(id).catch(() => undefined)
-        if (body !== undefined) this.updateMessage(id, { body })
-        try {
-          const insight = await mail.insight(id)
-          this.updateMessage(id, insight)
-          this.loadedSummaryIDs.add(id)
-        } catch (error) {
-          if (!isUnavailable(error)) this.set('errorMessage', '메일 요약을 불러오지 못했어요.')
+        if (!this.message(id)?.bodyHtml) {
+          const body = await mail.body(id).catch(() => undefined)
+          if (body !== undefined) this.updateMessage(id, body)
+        }
+        if (!this.loadedSummaryIDs.has(id)) {
+          try {
+            const insight = await mail.insight(id)
+            this.updateMessage(id, insight)
+            this.loadedSummaryIDs.add(id)
+          } catch (error) {
+            if (!isUnavailable(error)) this.set('errorMessage', '메일 요약을 불러오지 못했어요.')
+          }
         }
       } finally {
         const ids = new Set(this.loadingSummaryIDs)

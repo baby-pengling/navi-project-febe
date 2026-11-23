@@ -54,6 +54,8 @@ export class SessionStore extends Observable {
   session: Session | null = null
   isLoading = true
   isRestoringSession = true
+  isPasswordRecovery = false
+  isLoginTransitioning = false
   errorMessage: string | null = null
 
   readonly client: SupabaseClient | null = supabase
@@ -64,8 +66,9 @@ export class SessionStore extends Observable {
   constructor() {
     super()
     if (!this.client) return
-    this.client.auth.onAuthStateChange((_event, session) => {
+    this.client.auth.onAuthStateChange((event, session) => {
       this.session = session
+      if (event === 'PASSWORD_RECOVERY') this.isPasswordRecovery = true
       this.isLoading = false
       this.isRestoringSession = false
       this.changed()
@@ -116,12 +119,15 @@ export class SessionStore extends Observable {
 
   async signIn(email: string, password: string): Promise<void> {
     const client = this.requireClient()
+    this.isLoginTransitioning = true
     this.setLoading(true)
     try {
       const { data, error } = await client.auth.signInWithPassword({ email, password })
       if (error) throw error
       this.session = data.session
+      this.isLoginTransitioning = true
     } catch (error) {
+      this.isLoginTransitioning = false
       throw normalizedAuthError(error)
     } finally {
       this.setLoading(false)
@@ -174,6 +180,24 @@ export class SessionStore extends Observable {
     const client = this.requireClient()
     const { error } = await client.auth.resend({ type: 'signup', email, options: { emailRedirectTo: REDIRECT_URL } })
     if (error) throw normalizedAuthError(error)
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const { error } = await this.requireClient().auth.resetPasswordForEmail(email.trim(), { redirectTo: REDIRECT_URL })
+    if (error) throw normalizedAuthError(error)
+  }
+
+  async completePasswordRecovery(password: string): Promise<void> {
+    const { error } = await this.requireClient().auth.updateUser({ password })
+    if (error) throw normalizedAuthError(error)
+    this.isPasswordRecovery = false
+    await this.signOut()
+    this.changed()
+  }
+
+  finishLoginTransition(): void {
+    this.isLoginTransitioning = false
+    this.changed()
   }
 
   async saveInterests(interests: string[]): Promise<void> {
@@ -369,11 +393,20 @@ function normalizedAuthError(error: unknown): Error {
   if (diagnostic.includes('email not confirmed') || diagnostic.includes('email_not_confirmed')) {
     return AppSessionError.emailConfirmationRequired()
   }
+  if (diagnostic.includes('invalid login credentials') || diagnostic.includes('invalid_credentials')) {
+    return new AppSessionError('이메일 또는 비밀번호가 올바르지 않아요.')
+  }
+  if (diagnostic.includes('invalid email') || diagnostic.includes('email_address_invalid')) {
+    return new AppSessionError('올바른 이메일 주소를 입력해 주세요.')
+  }
+  if (diagnostic.includes('network') || diagnostic.includes('failed to fetch')) {
+    return new AppSessionError('네트워크 연결을 확인하고 다시 시도해 주세요.')
+  }
   if (diagnostic.includes('unsupported provider') || diagnostic.includes('provider is not enabled')) {
     return AppSessionError.googleProviderNotConfigured()
   }
   if (diagnostic.includes('manual linking is disabled')) {
     return AppSessionError.manualLinkingDisabled()
   }
-  return error instanceof Error ? error : new Error(errorText(error))
+  return new AppSessionError('요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.')
 }

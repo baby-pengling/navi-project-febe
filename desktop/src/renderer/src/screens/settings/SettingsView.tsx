@@ -3,7 +3,7 @@ import { F, T } from '@/lib/theme'
 import { useModel } from '@/lib/observable'
 import { SNOOZE_PRESETS, type NotificationPreferences } from '@/data/types'
 import type { SettingsModel } from '@/models/settings'
-import { HStack, NaviCheckCircle, NaviImage, NaviMenu, NaviPanel, NaviPillButton, NaviSectionHeader, NaviTextField, Spacer, VStack } from '@/components/core'
+import { HStack, NaviCheckCircle, NaviImage, NaviPanel, NaviPillButton, NaviSectionHeader, NaviTextField, Spacer, VStack } from '@/components/core'
 import type { MainDialog } from '../MainWindow'
 
 /// Figma "12 - 설정": profile + notifications on the left, connected services on the right.
@@ -44,7 +44,7 @@ export function SettingsView({ model, onDialog, onSignOut }: {
         ) : (
           <NaviPillButton
             title={model.isConnectingGoogle ? '연결 중…' : '연결'}
-            disabled={model.isConnectingGoogle}
+            isLoading={model.isConnectingGoogle}
             onClick={() => void model.connectGoogle()}
           />
         )}
@@ -58,7 +58,7 @@ export function SettingsView({ model, onDialog, onSignOut }: {
       <div className="scroll" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
         <HStack spacing={12} align="stretch" style={{ minHeight: '100%' }}>
           <VStack spacing={12} style={{ flex: 1, minWidth: 0 }}>
-            <NaviPanel>
+            <NaviPanel spacing={12} horizontalPadding={16} verticalPadding={16}>
               <NaviSectionHeader title="프로필" />
               <NaviTextField title="이름" value={model.name} onChange={(name) => model.setName(name)} onSubmit={() => model.saveName()} onBlur={() => model.saveName()} />
               {model.profileError && <span style={{ ...F.body(10), color: T.red }}>{model.profileError}</span>}
@@ -76,25 +76,19 @@ export function SettingsView({ model, onDialog, onSignOut }: {
               </HStack>
             </NaviPanel>
 
-            <NaviPanel spacing={9} horizontalPadding={16} verticalPadding={16} fillsHeight>
+            <NaviPanel spacing={12} horizontalPadding={16} verticalPadding={16} fillsHeight>
               <NaviSectionHeader title="알림 설정" />
-              <NaviMenu
-                ariaLabel="스누즈 간격"
-                items={SNOOZE_PRESETS.map((minutes) => ({
-                  title: `${minutes}분`,
-                  action: () => model.setNotifications({ snoozeMinutes: minutes })
-                }))}
-                label={
-                  <HStack style={{ width: '100%', padding: '8px 14px', background: T.cardWhite, border: `1px solid ${T.border}`, borderRadius: 15 }}>
-                    <VStack spacing={3} align="flex-start">
-                      <span style={{ ...F.body(11, 'semibold'), color: T.grayText }}>스누즈 간격 · 기본값 9분</span>
-                      <span style={{ ...F.body(14, 'medium'), color: T.ink }}>{model.notifications.snoozeMinutes}분</span>
-                    </VStack>
-                    <Spacer />
-                    <span style={{ fontSize: 10, color: T.grayText }}>⌃⌄</span>
-                  </HStack>
-                }
-              />
+              <HStack style={{ width: '100%', padding: '8px 14px', background: T.cardWhite, border: `1px solid ${T.border}`, borderRadius: 15 }}>
+                <VStack spacing={3} align="flex-start">
+                  <span style={{ ...F.body(11, 'semibold'), color: T.grayText }}>스누즈 간격 · 기본값 9분</span>
+                  <span style={{ ...F.body(14, 'medium'), color: T.ink }}>{model.notifications.snoozeMinutes}분</span>
+                </VStack>
+                <Spacer />
+                <HStack spacing={6}>
+                  <button type="button" aria-label="스누즈 간격 줄이기" disabled={model.notifications.snoozeMinutes <= SNOOZE_PRESETS[0]} onClick={() => model.setNotifications({ snoozeMinutes: [...SNOOZE_PRESETS].reverse().find((value) => value < model.notifications.snoozeMinutes)! })} style={stepButtonStyle}><span aria-hidden>↓</span></button>
+                  <button type="button" aria-label="스누즈 간격 늘리기" disabled={model.notifications.snoozeMinutes >= SNOOZE_PRESETS.at(-1)!} onClick={() => model.setNotifications({ snoozeMinutes: SNOOZE_PRESETS.find((value) => value > model.notifications.snoozeMinutes)! })} style={stepButtonStyle}><span aria-hidden>↑</span></button>
+                </HStack>
+              </HStack>
               <NotificationRow title="새 메일 알림" isOn={model.notifications.newMail} onToggle={() => toggle('newMail')} />
               <NotificationRow title="일정 리마인드" isOn={model.notifications.calendarReminder} onToggle={() => toggle('calendarReminder')} />
               <NotificationRow title="메일 발송 승인 요청" isOn={model.notifications.mailSendConfirmation} onToggle={() => toggle('mailSendConfirmation')} />
@@ -104,7 +98,7 @@ export function SettingsView({ model, onDialog, onSignOut }: {
           </VStack>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <NaviPanel>
+            <NaviPanel spacing={12} horizontalPadding={16} verticalPadding={16}>
               <NaviSectionHeader title="연결된 서비스" tag="2개" />
               <span style={{ ...F.body(10), color: T.grayText }}>{googleCaption}</span>
               {serviceRow('Gmail', 'GmailLogo', services.mailConnected)}
@@ -126,6 +120,8 @@ export function SettingsView({ model, onDialog, onSignOut }: {
     </VStack>
   )
 }
+
+const stepButtonStyle: React.CSSProperties = { width: 32, height: 32, borderRadius: 7, background: T.lavender, color: T.purple, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1 }
 
 /// Same look as `NaviTextField`, for values the user can't edit here (login email).
 function ReadOnlyField({ title, value }: { title: string; value: string }) {

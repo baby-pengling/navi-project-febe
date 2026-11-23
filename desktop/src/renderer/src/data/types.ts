@@ -65,6 +65,7 @@ export interface NewTodoDraft {
   title: string
   dueAt: Date
   category?: NaviCategory
+  subtasks?: string[]
 }
 
 /// Figma "09 - 일정 (주) > 새 일정" form.
@@ -114,6 +115,7 @@ export interface MailMessage {
   sender: MailPerson
   subject: string
   body: string
+  bodyHtml?: string
   receivedAt: Date
   isStarred: boolean
   /** Briefing category ("답장 대기", "요청·승인", …) used by the filter tabs. */

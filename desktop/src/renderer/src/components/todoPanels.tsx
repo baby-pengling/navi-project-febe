@@ -28,7 +28,7 @@ import { ErrorText, NaviCheckbox, dueText } from './shared'
 
 export function Card({ children, spacing = 10, fills }: { children: ReactNode; spacing?: number; fills?: boolean }) {
   return (
-    <VStack spacing={spacing} style={{ padding: 20, background: T.cardWhite, borderRadius: 10, flex: fills ? 1 : undefined, minHeight: 0 }}>
+    <VStack spacing={spacing} className={fills ? 'scroll' : undefined} style={{ padding: 20, background: T.cardWhite, borderRadius: 10, flex: fills ? 1 : undefined, minHeight: 0 }}>
       {children}
     </VStack>
   )

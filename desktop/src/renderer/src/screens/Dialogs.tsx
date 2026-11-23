@@ -71,7 +71,7 @@ export function PasswordChangeDialog({ model, onDismiss }: { model: SettingsMode
       <Caption color={error || failure ? T.red : T.grayText}>{footnote}</Caption>
       <HStack spacing={11}>
         <NaviDialogButton title="취소" role="cancel" onClick={onDismiss} />
-        <NaviDialogButton title={isSubmitting ? '변경 중…' : '변경하기'} isEnabled={canSubmit} onClick={submit} />
+        <NaviDialogButton title="변경하기" isEnabled={canSubmit} isLoading={isSubmitting} onClick={submit} />
       </HStack>
     </NaviDialogCard>
   )
@@ -94,9 +94,10 @@ export function GoogleDisconnectDialog({ model, onDismiss }: { model: SettingsMo
       <HStack spacing={11}>
         <NaviDialogButton title="취소" role="cancel" onClick={onDismiss} />
         <NaviDialogButton
-          title={model.isDisconnecting ? '해제 중…' : '연결 해제'}
+          title="연결 해제"
           role="destructive"
           isEnabled={!model.isDisconnecting}
+          isLoading={model.isDisconnecting}
           onClick={async () => {
             if (await model.disconnectGoogle()) onDismiss()
           }}
@@ -113,7 +114,8 @@ export function CategoryDialog({ onCancel, onAdd }: { onCancel: () => void; onAd
   const [isPickerOpen, setPickerOpen] = useState(false)
   const [isSaving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const pickerRef = useDismiss(isPickerOpen, () => setPickerOpen(false))
+  const pickerInitial = useRef(color)
+  const pickerRef = useDismiss(isPickerOpen, () => { setColor(pickerInitial.current); setPickerOpen(false) })
 
   const trimmed = name.trim()
   /** Matches the DB CHECKs: name 1…30 characters. */
@@ -144,7 +146,7 @@ export function CategoryDialog({ onCancel, onAdd }: { onCancel: () => void; onAd
           <button
             type="button"
             aria-label={`색상 ${color}`}
-            onClick={() => setPickerOpen((v) => !v)}
+            onClick={() => { if (!isPickerOpen) pickerInitial.current = color; else setColor(pickerInitial.current); setPickerOpen((v) => !v) }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -163,9 +165,10 @@ export function CategoryDialog({ onCancel, onAdd }: { onCancel: () => void; onAd
           {isPickerOpen && (
             <div className="popover fade-in" style={{ top: 'calc(100% + 6px)', right: 0 }}>
               <NaviColorPicker
-                initialHex={color}
+                initialHex={pickerInitial.current}
+                onPreview={setColor}
                 onFinish={(picked) => {
-                  if (picked) setColor(picked)
+                  setColor(picked ?? pickerInitial.current)
                   setPickerOpen(false)
                 }}
               />
@@ -181,7 +184,7 @@ export function CategoryDialog({ onCancel, onAdd }: { onCancel: () => void; onAd
       {error && <span style={{ ...F.body(10), color: T.red }}>{error}</span>}
       <HStack spacing={11}>
         <NaviDialogButton title="취소" role="cancel" onClick={onCancel} />
-        <NaviDialogButton title={isSaving ? '추가 중…' : '추가하기'} isEnabled={isValid && !isSaving} onClick={save} />
+        <NaviDialogButton title="추가하기" isEnabled={isValid && !isSaving} isLoading={isSaving} onClick={save} />
       </HStack>
     </NaviDialogCard>
   )
@@ -221,7 +224,7 @@ function hexToHsv(hex: string): [number, number, number] {
 
 /// Figma "자유 색상 피커": saturation/brightness square, hue bar, HEX field, 취소 / 적용.
 /// Calls `onFinish(null)` on cancel.
-function NaviColorPicker({ initialHex, onFinish }: { initialHex: string; onFinish: (hex: string | null) => void }) {
+function NaviColorPicker({ initialHex, onPreview, onFinish }: { initialHex: string; onPreview: (hex: string) => void; onFinish: (hex: string | null) => void }) {
   const [[hue, saturation, brightness], setHSV] = useState<[number, number, number]>(() => hexToHsv(naviHex(initialHex)))
   const [hexText, setHexText] = useState(naviHex(initialHex).toUpperCase())
   const current = hsvToHex(hue, saturation, brightness)
@@ -257,6 +260,7 @@ function NaviColorPicker({ initialHex, onFinish }: { initialHex: string; onFinis
     }
     setHSV(hexToHsv(text))
     setHexText(text)
+    onPreview(text)
     return text
   }
 
@@ -267,7 +271,9 @@ function NaviColorPicker({ initialHex, onFinish }: { initialHex: string; onFinis
         ref={squareRef}
         onPointerDown={track(squareRef, (x, y) => {
           setHSV([hue, x, 1 - y])
-          setHexText(hsvToHex(hue, x, 1 - y))
+          const next = hsvToHex(hue, x, 1 - y)
+          setHexText(next)
+          onPreview(next)
         })}
         style={{
           position: 'relative',
@@ -295,7 +301,9 @@ function NaviColorPicker({ initialHex, onFinish }: { initialHex: string; onFinis
         ref={hueRef}
         onPointerDown={track(hueRef, (x) => {
           setHSV([x, saturation, brightness])
-          setHexText(hsvToHex(x, saturation, brightness))
+          const next = hsvToHex(x, saturation, brightness)
+          setHexText(next)
+          onPreview(next)
         })}
         style={{
           position: 'relative',
@@ -324,13 +332,17 @@ function NaviColorPicker({ initialHex, onFinish }: { initialHex: string; onFinis
         <span style={F.body(10)}>HEX</span>
         <input
           value={hexText}
-          onChange={(e) => setHexText(e.target.value)}
+          onChange={(e) => {
+            setHexText(e.target.value)
+            const next = e.target.value.trim().toUpperCase()
+            if (/^#[0-9A-F]{6}$/.test(next)) onPreview(next)
+          }}
           onKeyDown={(e) => e.key === 'Enter' && applyHexText()}
           style={{ ...F.body(12), textAlign: 'right' }}
         />
       </HStack>
       <HStack spacing={8}>
-        <NaviDialogButton title="취소" role="cancel" onClick={() => onFinish(null)} />
+        <NaviDialogButton title="취소" role="cancel" onClick={() => { onPreview(initialHex); onFinish(null) }} />
         <NaviDialogButton title="적용" onClick={() => onFinish(applyHexText())} />
       </HStack>
     </VStack>

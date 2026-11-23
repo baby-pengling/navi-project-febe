@@ -1,5 +1,8 @@
 import { Observable } from '@/lib/observable'
-import { addDays, addMinutes, format, isSameDay, startOfDay } from '@/lib/dates'
+import { addMinutes, format, isSameDay, startOfDay } from '@/lib/dates'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { TodoStore } from '@/data/backend'
+import { makeEdgeServices, type EdgeServices } from '@/data/edge'
 import type { DashboardEvent, DashboardTodo, MailMessage, NaviCategory, NewEventDraft } from '@/data/types'
 
 /// A briefing mail in the floating widget: the message plus the short lines the widget shows
@@ -24,123 +27,89 @@ export type FloatingScreen =
   | { kind: 'todoDetail'; id: string }
   | { kind: 'deadline'; id: string }
 
-/// State for the floating mini widget (Figma "03-1 Floating UI"). Like the Swift app, it is
-/// UI only for now: everything is sample data and edits stay in memory.
-// TODO: Load from the same services as the main window once the widget is wired to the backend.
+/// State for the floating mini widget, backed by the same services as the main window.
 export class FloatingWidgetModel extends Observable {
   screen: FloatingScreen = { kind: 'home' }
   /** Whether the panel is showing above the mascot; tapping the mascot toggles it. */
   isPanelOpen = true
   userName = ''
-  mails: FloatingMail[]
-  events: DashboardEvent[]
-  todos: DashboardTodo[]
-  todoCategories: NaviCategory[]
-  calendarCategories: NaviCategory[]
+  mails: FloatingMail[] = []
+  events: DashboardEvent[] = []
+  todos: DashboardTodo[] = []
+  todoCategories: NaviCategory[] = []
+  calendarCategories: NaviCategory[] = []
+  isLoading = false
+  loadError: string | null = null
   addedTodoMailIDs = new Set<string>()
   addedEventMailIDs = new Set<string>()
+  private store: TodoStore | null = null
+  private services: EdgeServices | null = null
+  private userID: string | null = null
+  private loadVersion = 0
 
-  constructor(now = new Date()) {
-    super()
-    const startOfToday = startOfDay(now)
-    const today = (hour: number, minute = 0) => {
-      const d = new Date(startOfToday)
-      d.setHours(hour, minute)
-      return d
+  connect(client: SupabaseClient, userID: string): void {
+    if (this.userID === userID) return
+    this.loadVersion++
+    this.mails = []
+    this.events = []
+    this.todos = []
+    this.todoCategories = []
+    this.calendarCategories = []
+    this.screen = { kind: 'home' }
+    this.userID = userID
+    this.store = new TodoStore(client, userID)
+    this.services = makeEdgeServices(client, userID)
+    void this.load()
+  }
+
+  clear(): void {
+    this.loadVersion++
+    this.userID = null
+    this.store = null
+    this.services = null
+    this.mails = []
+    this.events = []
+    this.todos = []
+    this.todoCategories = []
+    this.calendarCategories = []
+    this.userName = ''
+    this.isLoading = false
+    this.loadError = null
+    this.changed()
+  }
+
+  async load(): Promise<void> {
+    if (!this.store || !this.services) return
+    const loadingFor = this.userID
+    const version = ++this.loadVersion
+    this.isLoading = true
+    this.loadError = null
+    this.changed()
+    const [mails, events, todos, todoCategories, calendarCategories] = await Promise.allSettled([
+      this.services.mail.inbox(),
+      this.services.calendar.todayBriefing(),
+      this.store.todayTodos(),
+      this.store.todoCategories(),
+      this.store.calendarCategories()
+    ])
+    if (this.userID !== loadingFor || this.loadVersion !== version) return
+    if (mails.status === 'fulfilled') {
+      this.mails = mails.value.slice(0, 3).map((message) => ({
+        id: message.id,
+        message,
+        briefTitle: message.subject,
+        actionNote: message.body.replace(/\s+/g, ' ').slice(0, 90)
+      }))
+    } else this.mails = []
+    this.events = events.status === 'fulfilled' ? events.value : []
+    this.todos = todos.status === 'fulfilled' ? todos.value : []
+    this.todoCategories = todoCategories.status === 'fulfilled' ? todoCategories.value : []
+    this.calendarCategories = calendarCategories.status === 'fulfilled' ? calendarCategories.value : []
+    if ([mails, events, todos, todoCategories, calendarCategories].some((result) => result.status === 'rejected')) {
+      this.loadError = '일부 정보를 불러오지 못했어요. 다시 열어 새로고침해 주세요.'
     }
-    const daysAgo = (days: number, hour: number, minute = 0) => addDays(today(hour, minute), -days)
-    const id = () => crypto.randomUUID()
-
-    const navi = { id: id(), name: 'navi', color: '#7165FF' }
-    const team = { id: id(), name: '팀', color: '#E5404F' }
-    const work = { id: id(), name: '업무', color: '#7165FF' }
-    const research = { id: id(), name: '리서치', color: '#3366CC' }
-    this.todoCategories = [work, research]
-    this.calendarCategories = [navi, team]
-
-    const mail = (fields: Omit<MailMessage, 'id'>): MailMessage => ({ id: id(), ...fields })
-    const m1 = mail({
-      sender: { name: '황성주', email: 'sungju_hwang@example.com' },
-      subject: '졸업 프로젝트 중간 리뷰 요청',
-      body: '안녕하세요.\n졸업 프로젝트 중간 리뷰를 목요일 16시에 진행할 예정입니다.\n참석 가능 여부를 오늘 안에 알려주세요.',
-      receivedAt: today(8, 12),
-      isStarred: true,
-      category: '답장 대기',
-      summary: [{ lead: '졸업 프로젝트 중간 리뷰', text: '목요일 16:00' }, { text: '오늘 17시 전 참석 여부 회신 필요' }],
-      suggestedTodo: '오늘 17:00까지 참석 여부 회신',
-      replyDraft: '교수님 안녕하세요. 목요일 16시 중간 리뷰에 참석하겠습니다.\n요청하신 자료는 확인 후 전달드리겠습니다.'
-    })
-    const m2 = mail({
-      sender: { name: '구영현', email: 'younghyun@example.com' },
-      subject: '펭귄재단 장학금 마감',
-      body: '안녕하세요.\n펭귄재단 장학금 신청 마감이 9월 18일입니다.\n신청 서류를 기한 내에 제출해 주세요.',
-      receivedAt: daysAgo(1, 14, 30),
-      isStarred: false,
-      category: '요청·승인',
-      summary: [{ lead: '장학금 신청 마감', text: '9월 18일' }, { text: '신청 서류 제출 필요' }],
-      suggestedTodo: '장학금 신청 서류 제출'
-    })
-    const m3 = mail({
-      sender: { name: 'GitHub', email: 'noreply@github.com' },
-      subject: '아기펭귄수호대 팀 승인 요청',
-      body: '아기펭귄수호대 팀에서 최종 자료 승인을 요청했습니다.\n승인하려면 저장소에서 확인해 주세요.',
-      receivedAt: daysAgo(1, 9),
-      isStarred: false,
-      category: '요청·승인',
-      summary: [{ lead: '팀 승인 요청', text: '최종 자료 승인 필요' }],
-      suggestedTodo: '아기펭귄수호대 최종 자료 승인'
-    })
-    this.mails = [
-      { id: m1.id, message: m1, briefTitle: '황성주 교수님 회신 필요', actionNote: '오늘 17시 전 참석 여부 회신', suggestedEvent: '목요일 16시 졸업 프로젝트 중간 리뷰' },
-      { id: m2.id, message: m2, briefTitle: '펭귄재단 장학금 마감', actionNote: '9월 18일까지 신청 서류 제출' },
-      { id: m3.id, message: m3, briefTitle: '아기펭귄수호대 팀 승인 요청', actionNote: '최종 자료 승인 필요' }
-    ]
-
-    const event = (title: string, startAt: Date, endAt: Date, category?: NaviCategory, location?: string): DashboardEvent => ({
-      id: id(),
-      title,
-      startAt,
-      endAt,
-      isAllDay: false,
-      category,
-      location
-    })
-    this.events = [
-      event('팀 스탠드업', today(9), today(10), navi, '우정정보관 205호'),
-      event('사용자 인터뷰', today(10, 30), today(11), team, '우정정보관 205호'),
-      event('서연이랑 점심 약속', today(12), today(13)),
-      event('동창회', today(19), today(21), team)
-    ]
-
-    this.todos = [
-      {
-        id: id(),
-        title: 'Navi 회의록 초안 공유',
-        isDone: false,
-        category: work,
-        dueAt: today(17),
-        source: 'mail_suggestion',
-        subtaskProgress: { done: 0, total: 3 },
-        orderIndex: 1,
-        subtasks: [
-          { id: id(), title: '검토 의견 모으기', isDone: false },
-          { id: id(), title: '수정 우선순위 정하기', isDone: false },
-          { id: id(), title: '최종안 팀에 공유', isDone: false }
-        ],
-        day: startOfToday
-      },
-      {
-        id: id(),
-        title: '인터뷰 질문지 정리',
-        isDone: false,
-        category: research,
-        dueAt: today(9),
-        source: 'calendar_suggestion',
-        orderIndex: 2,
-        subtasks: [],
-        day: startOfToday
-      }
-    ]
+    this.isLoading = false
+    this.changed()
   }
 
   setScreen(screen: FloatingScreen): void {
@@ -162,6 +131,7 @@ export class FloatingWidgetModel extends Observable {
     this.screen = { kind: 'home' }
     this.isPanelOpen = true
     this.changed()
+    void this.load()
   }
 
   // MARK: - Lookups
@@ -190,50 +160,71 @@ export class FloatingWidgetModel extends Observable {
   }
 
   toggleTodo(id: string): void {
+    const todo = this.todo(id)
+    if (!todo) return
     this.update(id, (t) => ({ ...t, isDone: !t.isDone }))
+    void this.store?.setTodo(id, !todo.isDone).catch(() => this.failedSave())
   }
 
   renameTodo(id: string, title: string): void {
     const trimmed = title.trim()
-    if (trimmed) this.update(id, (t) => ({ ...t, title: trimmed }))
+    if (!trimmed || this.todo(id)?.title === trimmed) return
+    this.update(id, (t) => ({ ...t, title: trimmed }))
+    this.saveTodo(id)
   }
 
   setCategory(category: NaviCategory | undefined, id: string): void {
     this.update(id, (t) => ({ ...t, category }))
+    this.saveTodo(id)
   }
 
   setDue(date: Date, id: string): void {
-    this.update(id, (t) => ({ ...t, dueAt: date }))
+    this.update(id, (t) => ({ ...t, dueAt: date, day: startOfDay(date) }))
+    this.saveTodo(id)
   }
 
-  addTodo(title: string, category: NaviCategory | undefined, dueAt: Date | undefined, source: DashboardTodo['source'] = 'manual'): void {
+  async addTodo(title: string, category: NaviCategory | undefined, dueAt: Date | undefined, source: DashboardTodo['source'] = 'manual'): Promise<boolean> {
     const trimmed = title.trim()
-    if (!trimmed) return
-    this.todos = [
-      ...this.todos,
-      {
-        id: crypto.randomUUID(),
-        title: trimmed,
-        isDone: false,
-        category,
-        dueAt,
-        source,
-        orderIndex: Math.max(0, ...this.todos.map((t) => t.orderIndex)) + 1,
-        subtasks: [],
-        day: startOfDay(new Date())
-      }
-    ]
+    if (!trimmed || !this.store) return false
+    const todo: DashboardTodo = { id: crypto.randomUUID(), title: trimmed, isDone: false, category, dueAt, source,
+      orderIndex: Math.max(0, ...this.todos.map((t) => t.orderIndex)) + 1, subtasks: [], day: startOfDay(dueAt ?? new Date()) }
+    try {
+      await this.store.createTodo(todo, todo.day!)
+    } catch {
+      this.failedSave()
+      return false
+    }
+    this.todos = [...this.todos, todo]
     this.changed()
+    return true
   }
 
   toggleSubtask(subtaskID: string, id: string): void {
+    const subtask = this.todo(id)?.subtasks.find((item) => item.id === subtaskID)
+    if (!subtask) return
     this.update(id, (t) => withProgress({ ...t, subtasks: t.subtasks.map((s) => (s.id === subtaskID ? { ...s, isDone: !s.isDone } : s)) }))
+    void this.store?.setTodo(subtaskID, !subtask.isDone).catch(() => this.failedSave())
   }
 
   addSubtask(title: string, id: string): void {
     const trimmed = title.trim()
     if (!trimmed) return
-    this.update(id, (t) => withProgress({ ...t, subtasks: [...t.subtasks, { id: crypto.randomUUID(), title: trimmed, isDone: false }] }))
+    const subtask = { id: crypto.randomUUID(), title: trimmed, isDone: false }
+    this.update(id, (t) => withProgress({ ...t, subtasks: [...t.subtasks, subtask] }))
+    void this.store?.createSubtask(subtask, id, this.todo(id)?.day ?? new Date()).catch(() => this.failedSave())
+  }
+
+  private saveTodo(id: string): void {
+    const todo = this.todo(id)
+    if (!todo) return
+    void this.store?.updateTodo(id, todo.title, todo.dueAt, todo.day ?? startOfDay(new Date()), todo.category?.id).catch(() => this.failedSave())
+  }
+
+  private failedSave(): void {
+    void this.load().then(() => {
+      this.loadError = '변경 사항을 저장하지 못했어요.'
+      this.changed()
+    })
   }
 
   /// Default due time for the inline "할 일 추가" row: the next full hour today.
@@ -247,16 +238,11 @@ export class FloatingWidgetModel extends Observable {
 
   // MARK: - Events
 
-  saveEvent(draft: NewEventDraft, id?: string): void {
-    const event: DashboardEvent = {
-      id: id ?? crypto.randomUUID(),
-      title: draft.title.trim(),
-      startAt: draft.startAt,
-      endAt: draft.endAt,
-      isAllDay: false,
-      category: draft.category,
-      location: draft.location || undefined
-    }
+  async saveEvent(draft: NewEventDraft, id?: string): Promise<void> {
+    const service = this.services?.calendar
+    if (!service) throw new Error('일정 서비스에 연결되지 않았어요.')
+    const old = id ? this.event(id) : undefined
+    const event = old ? await service.update(id!, old, draft) : await service.create(draft)
     this.events = this.events.some((e) => e.id === event.id)
       ? this.events.map((e) => (e.id === event.id ? event : e))
       : [...this.events, event]
@@ -280,10 +266,10 @@ export class FloatingWidgetModel extends Observable {
 
   // MARK: - Mail actions
 
-  addSuggestedTodo(mailID: string): void {
+  async addSuggestedTodo(mailID: string): Promise<void> {
     const title = this.mail(mailID)?.message.suggestedTodo
     if (!title || this.addedTodoMailIDs.has(mailID)) return
-    this.addTodo(title, this.todoCategories[0], undefined, 'mail_suggestion')
+    if (!await this.addTodo(title, this.todoCategories[0], undefined, 'mail_suggestion')) return
     this.addedTodoMailIDs = new Set(this.addedTodoMailIDs).add(mailID)
     this.changed()
   }

@@ -11,7 +11,7 @@ import { MailTabModel } from '@/models/mail'
 import { ChatTabModel } from '@/models/chat'
 import { AssistantPromptModel } from '@/models/prompt'
 import { PromptContext } from '@/components/AssistantPrompt'
-import { NaviIcon, NaviImage, Spacer } from '@/components/core'
+import { NaviDialogButton, NaviDialogCard, NaviIcon, NaviImage, Spacer } from '@/components/core'
 import { DashboardView } from './dashboard/DashboardView'
 import { SettingsView } from './settings/SettingsView'
 import { ServiceConnectFlow, type ConnectStep } from './ServiceConnectFlow'
@@ -30,6 +30,7 @@ import {
 
 /// Window-wide modal dialogs, shown over a dimmed scrim.
 export type MainDialog =
+  | { kind: 'signOut' }
   | { kind: 'passwordChange' }
   | { kind: 'googleDisconnect' }
   | { kind: 'newTodoCategory' }
@@ -95,11 +96,12 @@ export function MainWindow({ store, onSignOut, onResetOnboarding }: {
   const [selection, setSelection] = useState<MainTab>('dashboard')
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activeDialog, setActiveDialog] = useState<MainDialog | null>(null)
+  const [isSigningOut, setSigningOut] = useState(false)
   const [mailConnectStep, setMailConnectStep] = useState<ConnectStep>('prompt')
   const [calendarConnectStep, setCalendarConnectStep] = useState<ConnectStep>('prompt')
 
   // Sign-out is also in the app menu (see the main process's `buildMenu`).
-  useEffect(() => window.navi.onMenuSignOut(onSignOut), [onSignOut])
+  useEffect(() => window.navi.onMenuSignOut(() => setActiveDialog({ kind: 'signOut' })), [])
   useEffect(() => window.navi.onMenuResetOnboarding(onResetOnboarding), [onResetOnboarding])
   // The widget's expand / "main window only" actions pick a tab.
   useEffect(() => window.navi.widget.onSelectTab((tab) => isTab(tab) && setSelection(tab)), [])
@@ -181,7 +183,7 @@ export function MainWindow({ store, onSignOut, onResetOnboarding }: {
           />
         )
       case 'settings':
-        return <SettingsView model={models.settings} onDialog={setActiveDialog} onSignOut={onSignOut} />
+        return <SettingsView model={models.settings} onDialog={setActiveDialog} onSignOut={() => setActiveDialog({ kind: 'signOut' })} />
       case 'mail':
         // The flow stays up after connecting so its "연동 완료" screen can show.
         if (!settings.services.mailConnected || mailConnectStep === 'success') {
@@ -229,10 +231,10 @@ export function MainWindow({ store, onSignOut, onResetOnboarding }: {
         <main style={{ flex: 1, minWidth: 0, padding: '0 10px', display: 'flex', flexDirection: 'column' }}>{content}</main>
 
         {/* Dialogs dim the whole window (sidebar included), per the Figma scrim. */}
-        {dialog && (
+        {(dialog || activeDialog?.kind === 'signOut') && (
           <div
             className="fade-in"
-            onClick={close}
+            onClick={() => { if (!isSigningOut) close() }}
             style={{
               position: 'absolute',
               inset: 0,
@@ -243,7 +245,23 @@ export function MainWindow({ store, onSignOut, onResetOnboarding }: {
               zIndex: 100
             }}
           >
-            {dialog}
+            {activeDialog?.kind === 'signOut' ? (
+              <NaviDialogCard>
+                <span style={{ ...F.heading(18), color: T.ink }}>로그아웃할까요?</span>
+                <span style={{ ...F.body(12), color: T.grayText }}>이 기기에서 로그아웃하고 처음 화면으로 돌아가요.</span>
+                <div style={{ display: 'flex', gap: 11 }}>
+                  <NaviDialogButton title="취소" role="cancel" isEnabled={!isSigningOut} onClick={close} />
+                  <NaviDialogButton title="로그아웃" role="destructive" isEnabled={!isSigningOut} isLoading={isSigningOut} onClick={() => {
+                    setSigningOut(true)
+                    void (async () => {
+                      await new Promise((resolve) => setTimeout(resolve, 350))
+                      await onSignOut()
+                      setSigningOut(false)
+                    })()
+                  }} />
+                </div>
+              </NaviDialogCard>
+            ) : dialog}
           </div>
         )}
       </div>
@@ -272,7 +290,7 @@ function Sidebar({ selection, onSelect, isCollapsed, onToggle }: {
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'flex-start',
           gap: 10,
-          padding: '10px 20px',
+          padding: isCollapsed ? '10px 8px' : '10px 12px',
           width: '100%',
           borderRadius: 10,
           color: isSelected ? T.cardWhite : T.grayText,
@@ -294,14 +312,13 @@ function Sidebar({ selection, onSelect, isCollapsed, onToggle }: {
   return (
     <nav
       style={{
-        // Figma "Sidebar" component: 175pt expanded, 85pt collapsed.
-        width: isCollapsed ? 85 : 175,
+        width: isCollapsed ? 62 : 155,
         transition: 'width 0.2s ease-in-out',
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: 20,
-        padding: '20px 15px',
+        gap: 16,
+        padding: isCollapsed ? '18px 8px' : '18px 12px',
         background: T.cardWhite,
         borderRadius: 15,
         overflow: 'hidden'

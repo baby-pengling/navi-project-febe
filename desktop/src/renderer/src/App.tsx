@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useModel } from './lib/observable'
 import { errorText, SessionStore } from './data/session'
-import { ConfigurationErrorView, LoadingView, OnboardingRouter, type OnboardingStep } from './screens/Onboarding'
+import { ConfigurationErrorView, LoadingView, OnboardingRouter, PasswordRecovery, type OnboardingStep } from './screens/Onboarding'
 import { MainWindow } from './screens/MainWindow'
 
 const COMPLETED_KEY = 'hasCompletedOnboarding'
@@ -40,7 +40,7 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isCompleted])
 
-  const showsMain = store.isConfigured && !store.isRestoringSession && hasCompletedOnboarding && isAuthenticated
+  const showsMain = store.isConfigured && !store.isRestoringSession && hasCompletedOnboarding && isAuthenticated && !store.isPasswordRecovery && !store.isLoginTransitioning
 
   const signOut = async () => {
     // The session is gone even if this throws (see `signOut`), so always reset.
@@ -63,6 +63,7 @@ export function App() {
 
   if (!store.isConfigured) return <ConfigurationErrorView message={store.configurationError ?? 'Supabase 설정을 확인해 주세요.'} />
   if (store.isRestoringSession) return <LoadingView />
+  if (store.isPasswordRecovery) return <PasswordRecovery store={store} onComplete={() => setStep('login')} />
   if (showsMain) {
     return <MainWindow key={store.session!.user.id} store={store} onSignOut={signOut} onResetOnboarding={resetOnboarding} />
   }

@@ -73,6 +73,7 @@ export function useTodoDrag(id: string, onDrop?: (draggedID: string) => void) {
         const dragged = e.dataTransfer.getData('application/x-navi-todo')
         if (dragged && onDrop) {
           e.preventDefault()
+          e.stopPropagation()
           onDrop(dragged)
         }
       }
@@ -82,10 +83,11 @@ export function useTodoDrag(id: string, onDrop?: (draggedID: string) => void) {
 
 /// Figma "Action Item": drag handle, checkbox, title (+ subtask chevron) on the left;
 /// subtask progress, category tag, and a due time / origin caption on the right.
-export function TodoItemRow({ todo, meta, isSelected, showsDetails = true, onToggle, onOpen, onDropTodo, onClick }: {
+export function TodoItemRow({ todo, meta, isSelected, groupedSelection = false, showsDetails = true, onToggle, onOpen, onDropTodo, onClick }: {
   todo: DashboardTodo
   meta?: TodoMeta
   isSelected?: boolean
+  groupedSelection?: boolean
   /** Progress, category tag, and subtask chevron; the calendar's list shows only the caption. */
   showsDetails?: boolean
   onToggle: () => void
@@ -106,8 +108,8 @@ export function TodoItemRow({ todo, meta, isSelected, showsDetails = true, onTog
         gap: 10,
         padding: '8px 10px',
         borderRadius: 5,
-        background: isSelected ? T.lavender : T.itemBackground,
-        border: `1px solid ${isSelected ? T.purple : 'transparent'}`,
+        background: isSelected || groupedSelection ? T.lavender : T.itemBackground,
+        border: `1px solid ${isSelected && !groupedSelection ? T.purple : 'transparent'}`,
         cursor: onClick ? 'pointer' : undefined
       }}
     >
@@ -443,9 +445,19 @@ export function NewTodoPanel({ categories, initialDraft, onCancel, onSave }: {
   onSave: (draft: NewTodoDraft) => Promise<void>
 }) {
   const [draft, setDraft] = useState(initialDraft)
+  const [subtaskInput, setSubtaskInput] = useState('')
+  const addSubtask = () => {
+    const title = subtaskInput.trim()
+    if (!title) return
+    setDraft((current) => ({ ...current, subtasks: [...(current.subtasks ?? []), title] }))
+    setSubtaskInput('')
+  }
   const { isSaving, saveError, save } = useSave(onSave, () => '할 일을 저장하지 못했어요. 다시 시도해 주세요.')
   const submit = () => {
-    if (isTodoDraftValid(draft)) save(draft)
+    if (isTodoDraftValid(draft)) {
+      const pending = subtaskInput.trim()
+      save({ ...draft, subtasks: pending ? [...(draft.subtasks ?? []), pending] : draft.subtasks })
+    }
   }
   return (
     <NaviPanel fillsHeight>
@@ -455,6 +467,20 @@ export function NewTodoPanel({ categories, initialDraft, onCancel, onSave }: {
       <FieldRow title="카테고리">
         <NaviCategoryPicker categories={categories} selection={draft.category} onChange={(category) => setDraft({ ...draft, category })} />
       </FieldRow>
+      <VStack spacing={7}>
+        <HStack><span style={{ ...F.title(14), color: T.dark }}>하위 할 일</span><Spacer /><span style={{ ...F.body(10, 'semibold'), color: T.dark, background: T.limeLight, borderRadius: 10, padding: '3px 9px' }}>0/{(draft.subtasks ?? []).length} 완료</span></HStack>
+        <VStack spacing={4}>
+          {(draft.subtasks ?? []).map((title, index) => <HStack key={`${title}-${index}`} spacing={8} style={{ padding: '5px 8px' }}>
+            <NaviCheckbox isChecked={false} />
+            <span style={{ ...F.body(12), color: T.ink, flex: 1 }}>{title}</span>
+            <button type="button" aria-label={`${title} 삭제`} onClick={() => setDraft((current) => ({ ...current, subtasks: current.subtasks?.filter((_, i) => i !== index) }))}>×</button>
+          </HStack>)}
+          <HStack spacing={8} style={{ padding: '7px 8px', background: T.itemBackground, borderRadius: 6 }}>
+            <NaviCheckbox isChecked={false} />
+            <input aria-label="하위 할 일 입력" placeholder="할 일 추가" value={subtaskInput} onChange={(event) => setSubtaskInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); addSubtask() } }} style={{ ...F.body(12), color: T.ink, flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent' }} />
+          </HStack>
+        </VStack>
+      </VStack>
       <Spacer />
       {saveError && <ErrorText>{saveError}</ErrorText>}
       <HStack spacing={8}>

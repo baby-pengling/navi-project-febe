@@ -29,6 +29,7 @@ interface CachedMail {
   subject: string | null;
   snippet: string | null;
   body_text: string | null;
+  body_html: string | null;
   received_at: string;
   message_id_header: string | null;
   references: string | null;
@@ -66,7 +67,11 @@ serve("mail", async ({ req, url, route, user, admin, body }) => {
 
   if (method === "GET" && (params = match(route, "messages/:id"))) {
     const row = await cachedMessage(admin, user.id, params.id);
-    return json(present(row));
+    // Refresh the selected message from Gmail. Older cache entries have only flattened text,
+    // and a detail view must not depend on the inbox list being refreshed first.
+    const google = await googleFor(admin, user.id);
+    const fresh = await google.get<GmailMessage>(`${GMAIL}/messages/${row.gmail_message_id}?format=full`);
+    return json({ ...present(row), body_html: htmlBody(fresh.payload, 1_000_000) });
   }
 
   if (method === "GET" && (params = match(route, "messages/:id/summary"))) {
@@ -225,6 +230,7 @@ function present(row: CacheRow) {
     subject: mail.subject,
     snippet: mail.snippet,
     body_text: mail.body_text,
+    body_html: mail.body_html ?? null,
     received_at: mail.received_at,
     starred: row.label_ids.includes("STARRED"),
     unread: row.label_ids.includes("UNREAD"),
@@ -261,6 +267,7 @@ function normalize(message: GmailMessage): CachedMail {
     subject: header("Subject"),
     snippet: message.snippet ? decodeEntities(message.snippet) : null,
     body_text: bodyText(message.payload)?.slice(0, BODY_LIMIT) ?? null,
+    body_html: htmlBody(message.payload),
     received_at: new Date(Number(message.internalDate)).toISOString(),
     message_id_header: header("Message-ID") ?? header("Message-Id"),
     references: header("References"),
@@ -274,11 +281,19 @@ function parseAddress(value: string): { name: string | null; email: string } {
 }
 
 function bodyText(part: GmailPart): string | null {
-  const plain = findPart(part, "text/plain");
-  if (plain?.body?.data) return decodeText(plain.body.data).trim();
   const html = findPart(part, "text/html");
-  if (html?.body?.data) return htmlToText(decodeText(html.body.data));
+  if (html?.body?.data) {
+    const readable = htmlToText(decodeText(html));
+    if (readable) return readable;
+  }
+  const plain = findPart(part, "text/plain");
+  if (plain?.body?.data) return decodeText(plain).trim();
   return null;
+}
+
+function htmlBody(part: GmailPart, limit = 200_000): string | null {
+  const html = findPart(part, "text/html");
+  return html?.body?.data ? decodeText(html).slice(0, limit) : null;
 }
 
 function findPart(part: GmailPart, mimeType: string): GmailPart | null {
@@ -290,14 +305,28 @@ function findPart(part: GmailPart, mimeType: string): GmailPart | null {
   return null;
 }
 
-function decodeText(data: string): string {
-  return new TextDecoder().decode(decodeBase64Url(data));
+function decodeText(part: GmailPart): string {
+  const contentType = part.headers?.find((header) => header.name.toLowerCase() === "content-type")?.value ?? "";
+  const charset = contentType.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1] ?? "utf-8";
+  const bytes = decodeBase64Url(part.body?.data ?? "");
+  try {
+    return new TextDecoder(charset).decode(bytes);
+  } catch {
+    return new TextDecoder().decode(bytes);
+  }
 }
 
 function htmlToText(html: string): string {
   return decodeEntities(
     html
       .replace(/<(style|script)[\s\S]*?<\/\1>/gi, "")
+      .replace(/<!--([\s\S]*?)-->/g, "")
+      .replace(/<a\b[^>]*href=["'](https?:[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, href, label) => {
+        const text = label.replace(/<[^>]+>/g, "").trim();
+        return text ? `[${/^https?:\/\//i.test(text) ? "링크 열기" : text}](${href})` : "";
+      })
+      .replace(/<li\b[^>]*>/gi, "\n- ")
+      .replace(/<h[1-6]\b[^>]*>/gi, "\n# ")
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<\/(p|div|li|tr|h\d)>/gi, "\n")
       .replace(/<[^>]+>/g, ""),
@@ -312,6 +341,7 @@ function decodeEntities(text: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&#x27;/g, "'")
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
     .replace(/&amp;/g, "&");
 }
 

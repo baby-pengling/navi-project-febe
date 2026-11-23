@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { F, T, naviHex, wash } from '@/lib/theme'
-import { format } from '@/lib/dates'
+import { addDays, addMonths, format, isSameDay, startOfMonth, startOfWeek } from '@/lib/dates'
 import type { NaviCategory } from '@/data/types'
 
 // Port of DesignSystem/NaviComponents.swift.
@@ -181,26 +181,30 @@ export function NaviFieldBox({ title, size = 'regular', isRequired, children, st
 }
 
 /// Figma "Input": a caption label above an editable value.
-export function NaviTextField({ title, value, onChange, isSecure, isRequired, size = 'regular', onSubmit, onBlur, autoFocus }: {
+export function NaviTextField({ title, value, onChange, isSecure, isRequired, isError, size = 'regular', onSubmit, onBlur, autoFocus }: {
   title: string
   value: string
   onChange: (value: string) => void
   isSecure?: boolean
   isRequired?: boolean
+  isError?: boolean
   size?: FieldSize
   onSubmit?: () => void
   onBlur?: () => void
   autoFocus?: boolean
 }) {
+  const [focused, setFocused] = useState(false)
   return (
-    <NaviFieldBox title={title} size={size} isRequired={isRequired}>
+    <NaviFieldBox title={title} size={size} isRequired={isRequired} style={{ borderColor: isError ? T.red : focused ? T.ink : T.border }}>
       <input
         type={isSecure ? 'password' : 'text'}
         value={value}
         aria-label={title}
+        aria-invalid={isError || undefined}
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); onBlur?.() }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.nativeEvent.isComposing) onSubmit?.()
         }}
@@ -208,8 +212,6 @@ export function NaviTextField({ title, value, onChange, isSecure, isRequired, si
     </NaviFieldBox>
   )
 }
-
-const toLocalInput = (date: Date, pattern: string) => format(date, pattern)
 
 /// Figma date/time input: the value reads "2026.09.17  17:00"; clicking opens a date and time
 /// picker in a popover.
@@ -220,42 +222,49 @@ export function NaviDateField({ title, date, onChange, size = 'compact' }: {
   size?: FieldSize
 }) {
   const [open, setOpen] = useState(false)
+  const [month, setMonth] = useState(() => startOfMonth(date))
   const ref = useDismiss(open, () => setOpen(false))
-  const setDay = (value: string) => {
-    const [y, m, d] = value.split('-').map(Number)
-    if (!y || !m || !d) return
+  const setDay = (day: Date) => {
     const next = new Date(date)
-    next.setFullYear(y, m - 1, d)
+    next.setFullYear(day.getFullYear(), day.getMonth(), day.getDate())
     onChange(next)
   }
-  const setTime = (value: string) => {
-    const [h, min] = value.split(':').map(Number)
-    if (Number.isNaN(h) || Number.isNaN(min)) return
+  const setTime = (hour: number, minute: number) => {
     const next = new Date(date)
-    next.setHours(h, min, 0, 0)
+    next.setHours(hour, minute, 0, 0)
     onChange(next)
   }
+  const first = startOfWeek(month, 0)
+  const days = Array.from({ length: 42 }, (_, index) => addDays(first, index))
+  const hour = date.getHours() % 12 || 12
+  const isPM = date.getHours() >= 12
+  const timeSelectStyle: CSSProperties = { ...F.body(12), color: T.purple, background: T.lavender, border: 0, borderRadius: 6, padding: '6px 3px', textAlign: 'center' }
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
-      <button type="button" aria-label={title} onClick={() => setOpen((v) => !v)} style={{ width: '100%' }}>
+    <div ref={ref} style={{ position: 'relative', width: '100%', minWidth: 0 }}>
+      <button type="button" aria-label={title} aria-expanded={open} onClick={() => { setMonth(startOfMonth(date)); setOpen((v) => !v) }} style={{ width: '100%' }}>
         <NaviFieldBox title={title} size={size}>
           {NaviDateField.format(date)}
         </NaviFieldBox>
       </button>
       {open && (
-        <div className="popover fade-in" style={{ top: 'calc(100% + 6px)', left: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input
-            type="date"
-            value={toLocalInput(date, 'yyyy-MM-dd')}
-            onChange={(e) => setDay(e.target.value)}
-            style={{ ...F.body(13), padding: '6px 8px', border: `1px solid ${T.border}`, borderRadius: 6 }}
-          />
-          <input
-            type="time"
-            value={toLocalInput(date, 'HH:mm')}
-            onChange={(e) => setTime(e.target.value)}
-            style={{ ...F.body(13), padding: '6px 8px', border: `1px solid ${T.border}`, borderRadius: 6 }}
-          />
+        <div className="popover fade-in" style={{ top: 'calc(100% + 6px)', ...(title === '종료' ? { right: 0 } : { left: 0 }), width: 246, zIndex: 90, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <HStack>
+            <span style={{ ...F.title(13), color: T.dark, flex: 1 }}>{format(month, 'yyyy년 M월')}</span>
+            <button type="button" aria-label="이전 달" onClick={() => setMonth(addMonths(month, -1))} style={{ color: T.purple, padding: '4px 8px', background: T.lavender, borderRadius: 5 }}>‹</button>
+            <button type="button" aria-label="다음 달" onClick={() => setMonth(addMonths(month, 1))} style={{ color: T.purple, padding: '4px 8px', background: T.lavender, borderRadius: 5 }}>›</button>
+          </HStack>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, textAlign: 'center' }}>
+            {['일', '월', '화', '수', '목', '금', '토'].map((label) => <span key={label} style={{ ...F.body(10), color: T.grayText, padding: 4 }}>{label}</span>)}
+            {days.map((day) => <button key={day.toISOString()} type="button" aria-label={format(day, 'yyyy년 M월 d일')} onClick={() => setDay(day)} style={{ ...F.body(11, isSameDay(day, date) ? 'bold' : 'regular'), color: isSameDay(day, date) ? T.purple : day.getMonth() === month.getMonth() ? T.ink : T.graySecondary, background: isSameDay(day, date) ? T.lavender : 'transparent', borderRadius: 5, height: 27, textAlign: 'center' }}>{day.getDate()}</button>)}
+          </div>
+          <HStack spacing={5}>
+            <span style={{ ...F.body(11), color: T.grayText, flex: 1 }}>시간</span>
+            <select aria-label="시" value={hour} onChange={(e) => setTime((Number(e.target.value) % 12) + (isPM ? 12 : 0), date.getMinutes())} style={timeSelectStyle}>{Array.from({ length: 12 }, (_, i) => <option key={i} value={i + 1}>{String(i + 1).padStart(2, '0')}</option>)}</select>
+            <span>:</span>
+            <select aria-label="분" value={date.getMinutes()} onChange={(e) => setTime(date.getHours(), Number(e.target.value))} style={timeSelectStyle}>{Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}</option>)}</select>
+            <select aria-label="오전 오후" value={isPM ? 'PM' : 'AM'} onChange={(e) => setTime((date.getHours() % 12) + (e.target.value === 'PM' ? 12 : 0), date.getMinutes())} style={timeSelectStyle}><option>AM</option><option>PM</option></select>
+          </HStack>
+          <button type="button" onClick={() => setOpen(false)} style={{ ...F.body(12, 'semibold'), color: T.cardWhite, background: T.purple, borderRadius: 7, padding: 7, textAlign: 'center' }}>적용</button>
         </div>
       )}
     </div>
@@ -267,10 +276,11 @@ NaviDateField.format = (date: Date) => format(date, 'yyyy.MM.dd  HH:mm')
 // MARK: - Buttons
 
 /// Full-width onboarding call-to-action button.
-export function NaviButton({ title, style = 'primary', isEnabled = true, onClick }: {
+export function NaviButton({ title, style = 'primary', isEnabled = true, isLoading = false, onClick }: {
   title: string
   style?: 'primary' | 'secondary'
   isEnabled?: boolean
+  isLoading?: boolean
   onClick: () => void
 }) {
   const background = !isEnabled ? T.disabled : style === 'primary' ? T.purple : T.lavender
@@ -278,7 +288,7 @@ export function NaviButton({ title, style = 'primary', isEnabled = true, onClick
   return (
     <button
       type="button"
-      disabled={!isEnabled}
+      disabled={!isEnabled || isLoading}
       onClick={onClick}
       className="hover-dim"
       style={{
@@ -291,26 +301,27 @@ export function NaviButton({ title, style = 'primary', isEnabled = true, onClick
         textAlign: 'center'
       }}
     >
-      {title}
+      {isLoading ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="navi-loading-logo"><NaviMascot width={22} /></span>{title}</span> : title}
     </button>
   )
 }
 
 export function NaviLinkButton({ title, onClick }: { title: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} style={{ ...F.body(14, 'semibold'), color: T.purple, alignSelf: 'center' }}>
+    <button type="button" className="navi-link-button" onClick={onClick} style={{ ...F.body(14, 'semibold'), color: T.purple, alignSelf: 'center' }}>
       {title}
     </button>
   )
 }
 
 /// Compact tinted button used inside cards ("할 일 추가", "비밀번호 변경", "연결", "관리").
-export function NaviPillButton({ title, icon, style = 'accent', size = 'regular', disabled, onClick }: {
+export function NaviPillButton({ title, icon, style = 'accent', size = 'regular', disabled, isLoading = false, onClick }: {
   title: string
   icon?: string
   style?: 'accent' | 'success' | 'outline' | 'primary'
   size?: 'regular' | 'large'
   disabled?: boolean
+  isLoading?: boolean
   onClick: () => void
 }) {
   const colors = {
@@ -323,7 +334,7 @@ export function NaviPillButton({ title, icon, style = 'accent', size = 'regular'
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={disabled || isLoading}
       onClick={onClick}
       className="hover-dim"
       style={{
@@ -342,7 +353,7 @@ export function NaviPillButton({ title, icon, style = 'accent', size = 'regular'
         opacity: disabled ? 0.6 : 1
       }}
     >
-      {icon && <NaviIcon name={icon} />}
+      {isLoading ? <span className="navi-loading-logo"><NaviMascot width={18} /></span> : icon && <NaviIcon name={icon} />}
       {title}
     </button>
   )
@@ -358,10 +369,11 @@ export function NaviCloseButton({ onClick }: { onClick: () => void }) {
 }
 
 /// Figma dialog button row item: white "취소", lavender secondary, purple primary, or red destructive.
-export function NaviDialogButton({ title, role = 'primary', isEnabled = true, onClick }: {
+export function NaviDialogButton({ title, role = 'primary', isEnabled = true, isLoading = false, onClick }: {
   title: string
   role?: 'cancel' | 'secondary' | 'primary' | 'destructive'
   isEnabled?: boolean
+  isLoading?: boolean
   onClick: () => void
 }) {
   const [color, background] = {
@@ -387,13 +399,13 @@ export function NaviDialogButton({ title, role = 'primary', isEnabled = true, on
         textAlign: 'center'
       }}
     >
-      {title}
+      {isLoading ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Spinner small />{title} 중…</span> : title}
     </button>
   )
 }
 
 /// Figma "Resize Button / Compress": hides the main window and shows the floating mini widget.
-export function NaviCompressButton() {
+export function NaviCompressButton({ compact = false }: { compact?: boolean }) {
   return (
     <button
       type="button"
@@ -406,15 +418,15 @@ export function NaviCompressButton() {
         background: T.purple,
         borderRadius: 5,
         padding: 8,
-        width: 44,
-        height: 42,
+        width: compact ? 36 : 44,
+        height: compact ? 35 : 42,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0
       }}
     >
-      <NaviIcon name="IconCompress" size={24} style={{ transform: 'rotate(90deg)' }} />
+      <NaviIcon name="IconCompress" size={compact ? 19 : 24} style={{ transform: 'rotate(90deg)' }} />
     </button>
   )
 }
@@ -441,6 +453,7 @@ export function NaviPanel({ spacing = 10, horizontalPadding = 20, verticalPaddin
         width: '100%',
         flex: fillsHeight ? 1 : undefined,
         minHeight: 0,
+        overflowY: fillsHeight ? 'auto' : undefined,
         background: T.cardWhite,
         borderRadius: 10,
         ...style
@@ -512,14 +525,11 @@ export function NaviCategoryPicker({ categories, selection, onChange, allowsNone
   onChange: (category: NaviCategory | undefined) => void
   allowsNone?: boolean
 }) {
+  const [open, setOpen] = useState(false)
+  const ref = useDismiss(open, () => setOpen(false))
   return (
-    <NaviMenu
-      ariaLabel="카테고리"
-      items={[
-        ...(allowsNone ? [{ title: '카테고리 없음', action: () => onChange(undefined) }] : []),
-        ...categories.map((category) => ({ title: category.name, action: () => onChange(category) }))
-      ]}
-      label={
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" aria-label="카테고리" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <HStack
           spacing={8}
           style={{ padding: '5px 8px', background: T.cardWhite, borderRadius: 10, border: `1px solid ${T.border}` }}
@@ -533,8 +543,12 @@ export function NaviCategoryPicker({ categories, selection, onChange, allowsNone
             <NaviIcon name="IconChevron" />
           </span>
         </HStack>
-      }
-    />
+      </button>
+      {open && <div className="menu fade-in" style={{ top: 'calc(100% + 4px)', right: 0, zIndex: 80, minWidth: 160 }}>
+        {allowsNone && <button type="button" className="category-none-option" onClick={() => { onChange(undefined); setOpen(false) }} style={{ ...F.body(12), color: T.ink, background: T.itemBackground, borderRadius: 6 }}>카테고리 없음</button>}
+        {categories.map((category) => <button key={category.id} type="button" onClick={() => { onChange(category); setOpen(false) }}><NaviCategoryTag category={category} fontSize={11} /></button>)}
+      </div>}
+    </div>
   )
 }
 

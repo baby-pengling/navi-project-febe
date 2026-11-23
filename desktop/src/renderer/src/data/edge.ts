@@ -180,6 +180,7 @@ interface MessageDTO {
   subject?: string | null
   snippet?: string | null
   body_text?: string | null
+  body_html?: string | null
   received_at: string
   starred?: boolean | null
   label_ids?: string[] | null
@@ -236,9 +237,9 @@ export class MailService {
   }
 
   /// Full body text (`GET /mail/messages/:id`).
-  async body(id: string): Promise<string | undefined> {
+  async body(id: string): Promise<{ body: string; bodyHtml?: string }> {
     const row = await this.edge.call<MessageDTO>('GET', `mail/messages/${id.toLowerCase()}`)
-    return row.body_text ?? row.snippet ?? undefined
+    return { body: row.body_text ?? row.snippet ?? '', bodyHtml: row.body_html ?? undefined }
   }
 
   /// Cached AI summary, reply suggestion, and first suggested todo.
@@ -277,6 +278,7 @@ export class MailService {
       sender: { name: row.from.name ?? '', email: row.from.email },
       subject: row.subject ?? '(제목 없음)',
       body: row.body_text ?? row.snippet ?? '',
+      bodyHtml: row.body_html ?? undefined,
       receivedAt: parseDate(row.received_at) ?? new Date(),
       isStarred: row.starred ?? false,
       category: (row.label_ids ?? []).map((id) => labels.get(id)).find((name) => name !== undefined),

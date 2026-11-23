@@ -264,8 +264,8 @@ function MailDetailPanel({ model, message }: { model: MailTabModel; message: Mai
           <span style={{ ...F.body(10), color: T.grayText, whiteSpace: 'nowrap' }}>{MailTabModel.longDate(message.receivedAt)}</span>
         </HStack>
       </VStack>
-      <div className="scroll selectable" style={{ flex: 1, minHeight: 0, ...F.body(10), color: T.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-        {message.body}
+      <div className="scroll selectable" style={{ flex: 1, minHeight: 0, ...F.body(12), color: T.ink, lineHeight: 1.6, overflowWrap: 'anywhere' }}>
+        {message.bodyHtml ? <iframe title={`${message.subject} 원본 메일`} sandbox="allow-popups" referrerPolicy="no-referrer" srcDoc={`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; img-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:">${message.bodyHtml}`} style={{ width: '100%', height: '100%', minHeight: 360, border: 0, background: T.cardWhite }} /> : <MailBody text={message.body} />}
       </div>
       {model.loadingSummaryIDs.has(message.id) && message.summary.length === 0 && (
         <span style={{ ...F.body(11), color: T.grayText }}>AI 요약을 불러오는 중이에요…</span>
@@ -335,6 +335,27 @@ function MailDetailPanel({ model, message }: { model: MailTabModel; message: Mai
       </VStack>
     </Pane>
   )
+}
+
+function MailBody({ text }: { text: string }) {
+  const lines = text.split(/\r?\n/)
+  return <VStack spacing={5}>
+    {lines.map((line, index) => {
+      const heading = line.match(/^#{1,6}\s+(.+)/)
+      const content = heading?.[1] ?? line
+      const pieces = content.split(/(\[[^\]]+\]\(https?:\/\/[^)]+\)|https?:\/\/\S+|\*\*[^*]+\*\*)/g)
+      return <div key={index} style={{ minHeight: line ? undefined : 8, fontWeight: heading ? 700 : undefined, fontSize: heading ? 15 : undefined }}>
+        {pieces.map((piece, pieceIndex) => {
+          const markdownLink = piece.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/)
+          const rawURL = piece.match(/^https?:\/\/\S+$/)
+          const url = markdownLink?.[2] ?? rawURL?.[0]
+          if (url) return <a key={pieceIndex} href={url} target="_blank" rel="noopener noreferrer" style={{ color: T.purple, textDecoration: 'underline' }}>{markdownLink?.[1] ?? '링크 열기'}</a>
+          if (piece.startsWith('**') && piece.endsWith('**')) return <strong key={pieceIndex}>{piece.slice(2, -2)}</strong>
+          return piece
+        })}
+      </div>
+    })}
+  </VStack>
 }
 
 // MARK: - Compose

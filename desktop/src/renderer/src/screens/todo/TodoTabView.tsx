@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { F, T } from '@/lib/theme'
 import { useModel } from '@/lib/observable'
 import type { DashboardTodo } from '@/data/types'
@@ -16,7 +16,7 @@ import {
   Spacer,
   VStack
 } from '@/components/core'
-import { ErrorText, NewTodoPanel, TodoAddedPanel, TodoItemRow } from '@/components/shared'
+import { ErrorText, NaviCheckbox, NewTodoPanel, TodoAddedPanel, TodoItemRow } from '@/components/shared'
 import { Card, DeadlinePanel, PrepAddedPanel, PrepDetailPanel, TodoDetailPanel, WeeklyPrepPanel } from '@/components/todoPanels'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
 
@@ -31,8 +31,12 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
   }, [model])
 
   const panel = model.panel
-  /** Figma uses 308pt for the overview / prep panels and 284pt for the form panels. */
-  const rightWidth = ['overview', 'prep', 'prepAdded', 'todoAdded'].includes(panel.kind) ? 308 : 284
+  const [expandedTodos, setExpandedTodos] = useState<Set<string>>(new Set())
+  const selectTodo = (todo: DashboardTodo) => {
+    setExpandedTodos((current) => current.has(todo.id) ? new Set() : todo.subtasks.length ? new Set([todo.id]) : new Set())
+    model.set('panel', { kind: 'detail', id: todo.id })
+  }
+  const rightWidth = 308
   const overview = () => model.set('panel', { kind: 'overview' })
 
   const isSelected = (todo: DashboardTodo) => (panel.kind === 'detail' || panel.kind === 'deadline') && panel.id === todo.id
@@ -127,19 +131,30 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
                 </span>
               )}
               {model.groupedTodos.map((section) => (
-                <VStack key={section.group} spacing={10}>
+                <VStack key={section.group} spacing={10}
+                  onDragOver={section.group === 'today' ? (event) => { if (event.dataTransfer.types.includes('application/x-navi-todo')) event.preventDefault() } : undefined}
+                  onDrop={section.group === 'today' ? (event) => { const id = event.dataTransfer.getData('application/x-navi-todo'); if (id) { event.preventDefault(); model.moveToToday(id) } } : undefined}>
                   <NaviGroupSubtitle title={groupTitle[section.group]} count={section.todos.length} isAlert={section.group === 'overdue'} />
                   {section.todos.map((todo) => (
+                    <VStack key={todo.id} spacing={4} style={isSelected(todo) && todo.subtasks.length > 0 && expandedTodos.has(todo.id) ? { background: T.lavender, border: `1px solid ${T.purple}`, borderRadius: 6, paddingBottom: 4 } : undefined}>
                     <TodoItemRow
                       key={todo.id}
                       todo={todo}
                       meta={model.meta(todo)}
                       isSelected={isSelected(todo)}
+                      groupedSelection={isSelected(todo) && todo.subtasks.length > 0 && expandedTodos.has(todo.id)}
                       onToggle={() => model.toggle(todo.id)}
-                      onOpen={() => model.set('panel', { kind: 'detail', id: todo.id })}
-                      onClick={() => model.set('panel', { kind: 'detail', id: todo.id })}
+                      onOpen={() => selectTodo(todo)}
+                      onClick={() => selectTodo(todo)}
                       onDropTodo={(dragged) => model.move(dragged, todo.id)}
                     />
+                    {expandedTodos.has(todo.id) && todo.subtasks.map((subtask) => (
+                      <div key={subtask.id} onClick={() => model.set('panel', { kind: 'detail', id: todo.id })} style={{ ...F.body(12), color: subtask.isDone ? T.grayText : T.ink, display: 'flex', alignItems: 'center', gap: 9, padding: '6px 12px 6px 52px', textAlign: 'left', textDecoration: subtask.isDone ? 'line-through' : undefined, cursor: 'pointer' }}>
+                        <button type="button" aria-label={`${subtask.title} ${subtask.isDone ? '완료 취소' : '완료'}`} onClick={(event) => { event.stopPropagation(); model.toggleSubtask(subtask.id, todo.id) }}><NaviCheckbox isChecked={subtask.isDone} /></button>
+                        {subtask.title}
+                      </div>
+                    ))}
+                    </VStack>
                   ))}
                 </VStack>
               ))}

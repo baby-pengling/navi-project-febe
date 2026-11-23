@@ -162,8 +162,8 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
 
 function Header({ now, name }: { now: Date; name: string }) {
   return (
-    <HStack spacing={20}>
-      <span className="truncate" style={{ ...F.title(28), color: T.ink }}>
+    <HStack spacing={14}>
+      <span className="truncate" style={{ ...F.title(23), color: T.ink }}>
         {greeting(now, name)}
       </span>
       <Spacer />
@@ -172,14 +172,14 @@ function Header({ now, name }: { now: Date; name: string }) {
         <DateChip text={format(now, 'MM')} />
         <DateChip text={format(now, 'dd')} />
       </HStack>
-      <NaviCompressButton />
+      <NaviCompressButton compact />
     </HStack>
   )
 }
 
 function DateChip({ text }: { text: string }) {
   return (
-    <span style={{ ...F.mono(25), color: T.purple, padding: '12px 8px', background: T.lavender, borderRadius: 5, lineHeight: 1 }}>
+    <span style={{ ...F.mono(20), color: T.purple, padding: '9px 7px', background: T.lavender, borderRadius: 5, lineHeight: 1 }}>
       {text}
     </span>
   )

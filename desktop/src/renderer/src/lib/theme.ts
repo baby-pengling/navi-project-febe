@@ -33,7 +33,7 @@ export const T = {
   /** Darker than `border` on purpose: white text on #DBD9E0 is too faint. */
   disabled: '#A9A7AF',
   /** macOS windowBackgroundColor stand-in for onboarding. */
-  background: '#ECECEC'
+  background: '#F6F6F6'
 } as const
 
 /// Parses `#RRGGBB` category colors; falls back to the brand purple for malformed values.

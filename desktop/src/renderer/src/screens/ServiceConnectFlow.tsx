@@ -76,13 +76,13 @@ export function ServiceConnectFlow({ service, model, step, setStep, onFinish }: 
         )
       case 'permissions':
         return (
-          <VStack spacing={10}>
+          <VStack spacing={18}>
             {logo(40)}
             <Heading title="계정 연동 전 확인" subtitle="Google에서 계정을 선택하고 연동을 승인해 주세요." />
-            <VStack spacing={10} style={{ textAlign: 'left' }}>
+            <VStack spacing={18} style={{ width: '100%', maxWidth: 370, alignSelf: 'center', textAlign: 'left', padding: '8px 0' }}>
               <span style={{ ...F.heading(18), color: T.dark }}>Navi에서 사용할 기능</span>
               {copy.permissions.map((permission) => (
-                <VStack key={permission.title} spacing={4}>
+                <VStack key={permission.title} spacing={8}>
                   <span style={{ ...F.title(14), color: T.dark }}>{permission.title}</span>
                   <span style={{ ...F.body(12), color: T.grayText }}>{permission.detail}</span>
                 </VStack>

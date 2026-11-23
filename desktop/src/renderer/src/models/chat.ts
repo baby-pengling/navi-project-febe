@@ -18,6 +18,7 @@ export class ChatTabModel extends Observable {
 
   private assistant: AssistantService | null
   private unsubscribe: (() => void) | null = null
+  private responseTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(
     private todoModel: TodoTabModel,
@@ -144,6 +145,17 @@ export class ChatTabModel extends Observable {
     this.respondingIDs = new Set(this.respondingIDs).add(id)
     this.errorMessage = null
     this.changed()
+    const previousTimer = this.responseTimers.get(id)
+    if (previousTimer) clearTimeout(previousTimer)
+    this.responseTimers.set(id, setTimeout(() => {
+      this.responseTimers.delete(id)
+      if (!this.respondingIDs.has(id)) return
+      const pending = new Set(this.respondingIDs)
+      pending.delete(id)
+      this.respondingIDs = pending
+      this.errorMessage = '적절한 답변을 생성하지 못했습니다.'
+      this.changed()
+    }, 45_000))
     ;(async () => {
       try {
         const session = this.sessions.find((s) => s.id === id)
@@ -154,12 +166,15 @@ export class ChatTabModel extends Observable {
         }
         await assistant.send(text, id)
       } catch (error) {
+        const timer = this.responseTimers.get(id)
+        if (timer) clearTimeout(timer)
+        this.responseTimers.delete(id)
         const ids = new Set(this.respondingIDs)
         ids.delete(id)
         this.respondingIDs = ids
         this.errorMessage = isUnavailable(error)
           ? 'AI 비서가 아직 연결되지 않아 답변을 만들 수 없어요.'
-          : '메시지를 보내지 못했어요.'
+          : '적절한 답변을 생성하지 못했습니다.'
         this.changed()
       }
     })()
@@ -209,6 +224,10 @@ export class ChatTabModel extends Observable {
     }
     this.updateSession(session.id, (s) => ({ ...s, messages: [...s.messages, message], updatedAt: insert.createdAt ?? new Date() }))
     if (message.role === 'navi') {
+      const timer = this.responseTimers.get(insert.conversationID)
+      if (timer) clearTimeout(timer)
+      this.responseTimers.delete(insert.conversationID)
+      this.errorMessage = null
       const ids = new Set(this.respondingIDs)
       ids.delete(insert.conversationID)
       this.respondingIDs = ids

@@ -41,13 +41,24 @@ export function FloatingWidget() {
   const rootRef = useRef<HTMLDivElement>(null)
   const openMain: OpenMain = (tab) => window.navi.widget.expand(tab)
 
-  // The greeting uses the signed-in user's name, read from the shared session.
+  // The widget has its own renderer, so load the shared session and the same services here.
   useEffect(() => {
-    supabase?.auth.getSession().then(({ data }) => {
+    const client = supabase
+    client?.auth.getSession().then(({ data }) => {
       const metadata = data.session?.user.user_metadata ?? {}
       model.setUserName((metadata.navi_name ?? metadata.name ?? '') as string)
+      if (data.session) model.connect(client, data.session.user.id)
     })
-    return window.navi.widget.onReset(() => model.reset())
+    const reset = window.navi.widget.onReset(() => model.reset())
+    const { data: auth } = client?.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') model.clear()
+      else if (session) setTimeout(() => {
+        const metadata = session.user.user_metadata ?? {}
+        model.setUserName((metadata.navi_name ?? metadata.name ?? '') as string)
+        model.connect(client, session.user.id)
+      }, 0)
+    }) ?? { data: null }
+    return () => { reset(); auth?.subscription.unsubscribe() }
   }, [model])
 
   // Keep the window fitted to the content.
@@ -292,20 +303,24 @@ function HomeScreen({ model, openMain }: { model: FloatingWidgetModel; openMain:
     <Chrome
       title={greeting}
       subtitle={format(now, 'M월 d일 EEEE · a h:mm')}
-      caption={`오늘 놓치면 안 될 ${itemCount}가지를 먼저 정리했어요.`}
+      caption={model.isLoading ? '메일과 일정, 할 일을 불러오는 중이에요…' : `확인할 항목 ${itemCount}개를 정리했어요.`}
       openMain={openMain}
     >
-      <BriefSection title={`중요 메일 ${model.mails.length}개`} icon="SidebarMail" tint={T.purple} wash={T.lavender} onViewAll={() => model.setScreen({ kind: 'mails' })}>
+      {model.loadError && <span style={{ ...F.body(11), color: T.red }}>{model.loadError}</span>}
+      <BriefSection title={`최근 메일 ${model.mails.length}개`} icon="SidebarMail" tint={T.purple} wash={T.lavender} onViewAll={() => model.setScreen({ kind: 'mails' })}>
+        {!model.isLoading && model.mails.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>표시할 메일이 없어요.</span>}
         {model.mails.map((mail, index) => (
           <BriefItem key={mail.id} badge={String(index + 1)} title={mail.briefTitle} tint={T.purple} onClick={() => model.setScreen({ kind: 'mailDetail', id: mail.id })} />
         ))}
       </BriefSection>
       <BriefSection title={`오늘 일정 ${model.events.length}개`} icon="SidebarCalendar" tint={T.blue} wash={T.blueLight} onViewAll={() => model.setScreen({ kind: 'events' })}>
+        {!model.isLoading && model.events.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>오늘 일정이 없어요.</span>}
         {model.sortedEvents.map((event) => (
           <BriefItem key={event.id} badge={clockTime(event.startAt)} title={event.title} tint={T.blue} onClick={() => model.setScreen({ kind: 'eventDetail', id: event.id })} />
         ))}
       </BriefSection>
       <BriefSection title={`미리 준비할 일 ${model.openTodos.length}개`} icon="SidebarTodo" tint={T.green} wash={T.greenLight} onViewAll={() => model.setScreen({ kind: 'todos' })}>
+        {!model.isLoading && model.openTodos.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>오늘 할 일이 없어요.</span>}
         {model.openTodos.map((todo) => (
           <TodoRow key={todo.id} todo={todo} model={model} />
         ))}
@@ -409,12 +424,13 @@ function MailListScreen({ model, openMain }: { model: FloatingWidgetModel; openM
     <Chrome
       backTitle="오늘의 브리핑"
       title="오늘 확인해야 하는 메일"
-      subtitle={`우선 메일 · ${model.mails.length}개`}
-      caption="급한 순서대로 정리했어요. 메일을 누르면 답장 초안을 볼 수 있어요."
+      subtitle={`최근 메일 · ${model.mails.length}개`}
+      caption="최근 받은 메일이에요. 메일을 누르면 내용을 볼 수 있어요."
       onBack={() => model.setScreen({ kind: 'home' })}
       openMain={openMain}
     >
       <Card>
+        {model.mails.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>표시할 메일이 없어요.</span>}
         {model.mails.map((mail) => (
           <button
             key={mail.id}
@@ -594,7 +610,7 @@ function EventFormScreen({ model, title, eventID, fromMail, openMain }: {
           onCancel={goBack}
           onSave={async (draft) => {
             // TODO: Write through the `calendar` Edge Function once the widget is wired up.
-            model.saveEvent(draft, eventID)
+            await model.saveEvent(draft, eventID)
             if (fromMail) model.markEventAdded(fromMail)
             goBack()
           }}
@@ -610,10 +626,8 @@ function EventFormScreen({ model, title, eventID, fromMail, openMain }: {
 function TodoListScreen({ model, openMain }: { model: FloatingWidgetModel; openMain: OpenMain }) {
   const [newTitle, setNewTitle] = useState('')
   const [newCategory, setNewCategory] = useState<NaviCategory | undefined>(model.todoCategories[0])
-  const add = () => {
-    // TODO: Insert through the `todos` TABLE once the widget is wired up.
-    model.addTodo(newTitle, newCategory, model.newTodoDueAt)
-    setNewTitle('')
+  const add = async () => {
+    if (await model.addTodo(newTitle, newCategory, model.newTodoDueAt)) setNewTitle('')
   }
   return (
     <Chrome
@@ -624,6 +638,7 @@ function TodoListScreen({ model, openMain }: { model: FloatingWidgetModel; openM
       openMain={openMain}
     >
       <Card>
+        {model.todos.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>오늘 할 일이 없어요.</span>}
         {model.todos.map((todo) => (
           <TodoRow key={todo.id} todo={todo} model={model} />
         ))}

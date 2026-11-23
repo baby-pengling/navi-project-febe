@@ -16,7 +16,7 @@ body,
 body {
   font-family: 'Pretendard', -apple-system, 'Segoe UI', sans-serif;
   color: #19191c;
-  background: #ececec;
+  background: #f6f6f6;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
@@ -39,6 +39,24 @@ button {
 
 button:disabled {
   cursor: default;
+}
+
+.navi-link-button {
+  padding: 7px 12px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+.navi-link-button:hover {
+  background: #eceaff;
+}
+.password-reset-link:hover {
+  background: #ffe3e5;
+}
+
+.navi-loading-logo { animation: navi-loading 0.85s ease-in-out infinite alternate; }
+@keyframes navi-loading {
+  from { transform: scale(0.9); opacity: 0.6; }
+  to { transform: scale(1.08); opacity: 1; }
 }
 
 input,
@@ -147,6 +165,10 @@ textarea::placeholder {
 .menu button:hover {
   background: #7165ff;
   color: #fff;
+}
+.menu .category-none-option:hover {
+  background: #e6eaee;
+  color: #19191c;
 }
 
 .popover {

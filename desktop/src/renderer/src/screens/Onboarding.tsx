@@ -39,7 +39,7 @@ export function OnboardingRouter({ store, step, setStep, isCompleted, setComplet
       case 'programLanding':
         return <ProgramLanding onFinished={() => setStep('welcome')} />
       case 'welcome':
-        return <Welcome onLogin={() => setStep('login')} onSignUp={() => setStep('signUp')} />
+        return <Welcome onLogin={() => setStep('login')} onSignUp={() => { setCompleted(false); setStep('signUp') }} />
       case 'login':
         return (
           <Login
@@ -58,10 +58,7 @@ export function OnboardingRouter({ store, step, setStep, isCompleted, setComplet
           <SignUp
             store={store}
             onBackToLogin={() => setStep('login')}
-            onSuccess={() => {
-              setLoginNotice('회원가입이 완료되었습니다. 로그인해 주세요.')
-              setStep('login')
-            }}
+            onSuccess={() => setStep('interests')}
           />
         )
       case 'interests':
@@ -72,8 +69,8 @@ export function OnboardingRouter({ store, step, setStep, isCompleted, setComplet
             setInterests={setInterests}
             onNext={async (latest) => {
               try {
-                await store.saveInterests(latest)
-                setStep('services')
+                await store.completeOnboarding(latest, gmailConnected, calendarConnected)
+                setCompleted(true)
               } catch (error) {
                 store.setErrorMessage(errorText(error))
               }
@@ -162,13 +159,22 @@ function Login({ store, notice, onBack, onSuccess }: {
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setSubmitting] = useState(false)
+  const [isSuccessful, setSuccessful] = useState(false)
+  const [showReset, setShowReset] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [isResetting, setResetting] = useState(false)
+  const [resetNotice, setResetNotice] = useState<string | null>(null)
   const canSubmit = !isSubmitting && email.trim() !== '' && password !== ''
 
   const submit = async () => {
     if (!canSubmit) return
+    setErrorMessage(null)
     setSubmitting(true)
     try {
       await store.signIn(email, password)
+      setSuccessful(true)
+      await new Promise((resolve) => setTimeout(resolve, 650))
+      store.finishLoginTransition()
       onSuccess()
     } catch (error) {
       setErrorMessage(errorText(error))
@@ -176,6 +182,47 @@ function Login({ store, notice, onBack, onSuccess }: {
       setSubmitting(false)
     }
   }
+
+  const requestReset = async () => {
+    if (!resetEmail.trim() || isResetting) return
+    setResetting(true)
+    setErrorMessage(null)
+    setResetNotice(null)
+    try {
+      await store.requestPasswordReset(resetEmail)
+      setResetNotice('계정이 있다면 비밀번호 재설정 메일을 보냈어요. 받은 편지함을 확인해 주세요.')
+    } catch (error) {
+      setErrorMessage(errorText(error))
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  if (isSubmitting || isSuccessful) return (
+    <NaviCard>
+      <VStack spacing={18} align="center" style={{ textAlign: 'center' }}>
+        {isSuccessful ? <NaviMascot width={90} /> : <div className="navi-loading-logo"><NaviMascot width={90} /></div>}
+        <span style={{ ...F.body(14, 'semibold'), color: T.ink }}>{isSuccessful ? '로그인에 성공했어요.' : '로그인 중이에요...'}</span>
+      </VStack>
+    </NaviCard>
+  )
+
+  if (showReset) return (
+    <NaviCard>
+      <VStack spacing={20}>
+        <VStack spacing={10} align="center">
+          <NaviMascot width={100} />
+          <span style={{ ...F.title(25), color: T.ink }}>비밀번호 재설정</span>
+          <Subtitle>계정 이메일을 입력하면 재설정 링크를 보내드려요.</Subtitle>
+        </VStack>
+        <NaviTextField title="이메일" value={resetEmail} onChange={setResetEmail} onSubmit={requestReset} autoFocus />
+        {errorMessage && <InlineError message={errorMessage} />}
+        {resetNotice && <InlineNotice message={resetNotice} />}
+        <NaviButton title="재설정 메일 보내기" isEnabled={!!resetEmail.trim()} isLoading={isResetting} onClick={requestReset} />
+        <NaviLinkButton title="← 로그인으로 돌아가기" onClick={() => { setShowReset(false); setErrorMessage(null) }} />
+      </VStack>
+    </NaviCard>
+  )
 
   return (
     <NaviCard>
@@ -194,7 +241,10 @@ function Login({ store, notice, onBack, onSuccess }: {
           {errorMessage && <InlineError message={errorMessage} />}
           <VStack spacing={20}>
             <NaviButton title="로그인" isEnabled={canSubmit} onClick={submit} />
-            <NaviLinkButton title="← 처음으로" onClick={onBack} />
+            <HStack style={{ justifyContent: 'space-between' }}>
+              <NaviLinkButton title="← 처음으로" onClick={onBack} />
+              <button type="button" className="navi-link-button password-reset-link" style={{ ...F.body(14, 'semibold'), color: T.red }} onClick={() => { setResetEmail(email); setErrorMessage(null); setShowReset(true) }}>비밀번호를 잊으셨나요?</button>
+            </HStack>
           </VStack>
         </VStack>
       </VStack>
@@ -202,40 +252,67 @@ function Login({ store, notice, onBack, onSuccess }: {
   )
 }
 
+export function PasswordRecovery({ store, onComplete }: { store: SessionStore; onComplete: () => void }) {
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [isSaving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const save = async () => {
+    if (isSaving) return
+    if (password.length < 8) { setMessage('비밀번호는 8자리 이상이어야 합니다.'); return }
+    if (password !== confirmation) { setMessage('비밀번호가 일치하지 않아요.'); return }
+    setSaving(true)
+    setMessage(null)
+    try {
+      await store.completePasswordRecovery(password)
+      onComplete()
+    } catch (error) {
+      setMessage(errorText(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+  return <NaviCard><VStack spacing={16}>
+    <VStack spacing={10} align="center"><NaviMascot width={100} /><span style={{ ...F.title(25), color: T.ink }}>새 비밀번호 설정</span></VStack>
+    <NaviTextField title="새 비밀번호" value={password} onChange={setPassword} isSecure isError={!!message && password.length < 8} />
+    <NaviTextField title="비밀번호 확인" value={confirmation} onChange={setConfirmation} isSecure onSubmit={save} isError={!!message && password !== confirmation} />
+    {message && <InlineError message={message} />}
+    <NaviButton title="비밀번호 저장" isLoading={isSaving} onClick={save} />
+  </VStack></NaviCard>
+}
+
 function SignUp({ store, onBackToLogin, onSuccess }: { store: SessionStore; onBackToLogin: () => void; onSuccess: () => void }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('')
-  const [errorField, setErrorField] = useState<'email' | 'password' | null>(null)
+  type RequiredField = 'name' | 'email' | 'password'
+  const [touched, setTouched] = useState<Record<RequiredField, boolean>>({ name: false, email: false, password: false })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setSubmitting] = useState(false)
   const [isResending, setResending] = useState(false)
   const [requiresConfirmation, setRequiresConfirmation] = useState(false)
-  const canSubmit = !isSubmitting && name.trim() !== '' && email.trim() !== '' && password !== ''
+  const fieldErrors: Record<RequiredField, string | null> = {
+    name: name.trim() ? null : '필수 입력 항목입니다.',
+    email: !email.trim() ? '필수 입력 항목입니다.' : !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email) ? '올바른 이메일이 아닙니다.' : null,
+    password: !password ? '필수 입력 항목입니다.' : password.length < 8 ? '비밀번호는 8자리 이상이어야 합니다.' : null
+  }
+  const markTouched = (field: RequiredField) => setTouched((current) => ({ ...current, [field]: true }))
+  const changeField = (field: RequiredField, value: string, setter: (value: string) => void) => {
+    setter(value)
+    if (value) markTouched(field)
+  }
 
   const submit = async () => {
-    if (!canSubmit) return
-    if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) {
-      setErrorField('email')
-      setErrorMessage('올바른 이메일이 아닙니다.')
-      return
-    }
-    if (password.length < 8) {
-      setErrorField('password')
-      setErrorMessage('비밀번호는 8자리 이상이어야 합니다.')
-      return
-    }
-    setErrorField(null)
+    if (isSubmitting) return
+    setTouched({ name: true, email: true, password: true })
+    if (Object.values(fieldErrors).some(Boolean)) return
     setErrorMessage(null)
     setRequiresConfirmation(false)
     setSubmitting(true)
     try {
       const sessionCreated = await store.signUp(name, email, password, role)
       if (sessionCreated) {
-        // Supabase returns a session when Confirm email is off. Keep signup and login as
-        // separate user-visible steps by clearing that session before showing the login screen.
-        await store.signOut()
         onSuccess()
       } else {
         setRequiresConfirmation(true)
@@ -272,23 +349,24 @@ function SignUp({ store, onBackToLogin, onSuccess }: { store: SessionStore; onBa
           </VStack>
         </VStack>
         <VStack spacing={15}>
-          <NaviTextField title="이름" value={name} onChange={setName} isRequired autoFocus />
-          <NaviTextField title="이메일" value={email} onChange={setEmail} isRequired />
-          {errorField === 'email' && errorMessage && <InlineError message={errorMessage} />}
-          <NaviTextField title="비밀번호" value={password} onChange={setPassword} isSecure isRequired />
-          {errorField === 'password' && errorMessage && <InlineError message={errorMessage} />}
+          <NaviTextField title="이름" value={name} onChange={(value) => changeField('name', value, setName)} onBlur={() => markTouched('name')} isRequired isError={touched.name && !!fieldErrors.name} autoFocus />
+          {touched.name && fieldErrors.name && <InlineError message={fieldErrors.name} />}
+          <NaviTextField title="이메일" value={email} onChange={(value) => changeField('email', value, setEmail)} onBlur={() => markTouched('email')} isRequired isError={touched.email && !!fieldErrors.email} />
+          {touched.email && fieldErrors.email && <InlineError message={fieldErrors.email} />}
+          <NaviTextField title="비밀번호" value={password} onChange={(value) => changeField('password', value, setPassword)} onBlur={() => markTouched('password')} isSecure isRequired isError={touched.password && !!fieldErrors.password} />
+          {touched.password && fieldErrors.password && <InlineError message={fieldErrors.password} />}
           <NaviTextField title="직업 / 역할" value={role} onChange={setRole} onSubmit={submit} />
-          {errorField === null && errorMessage && <InlineError message={errorMessage} />}
+          {errorMessage && <InlineError message={errorMessage} />}
           {requiresConfirmation && (
             <NaviButton
-              title={isResending ? '인증 메일 보내는 중...' : '인증 메일 다시 보내기'}
+              title="인증 메일 다시 보내기"
               style="secondary"
-              isEnabled={!isResending}
+              isLoading={isResending}
               onClick={resend}
             />
           )}
           <VStack spacing={20}>
-            <NaviButton title="계정 만들기" isEnabled={canSubmit} onClick={submit} />
+            <NaviButton title="계정 만들기" isLoading={isSubmitting} onClick={submit} />
             <NaviLinkButton title="← 이미 계정이 있나요? 로그인 하러가기" onClick={onBackToLogin} />
           </VStack>
         </VStack>
@@ -400,9 +478,13 @@ function InterestSelection({ store, interests, setInterests, onNext }: {
             <input
               value={draft}
               aria-label="관심 분야 입력"
+              placeholder="입력 후 Enter 또는 Tab을 눌러 태그 추가"
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) addDraft()
+                if ((e.key === 'Enter' || e.key === 'Tab') && !e.nativeEvent.isComposing && draft.trim()) {
+                  e.preventDefault()
+                  addDraft()
+                }
               }}
               style={{ ...F.body(13), minWidth: 90, flex: 1, width: 'auto' }}
             />
@@ -411,8 +493,9 @@ function InterestSelection({ store, interests, setInterests, onNext }: {
 
         <VStack spacing={10}>
           <NaviButton
-            title="관심 분야 추가"
-            isEnabled={!isSaving && (interests.length > 0 || draft.trim() !== '')}
+            title="관심 분야 추가하고 시작하기"
+            isEnabled={interests.length > 0 || draft.trim() !== ''}
+            isLoading={isSaving}
             onClick={() => {
               const latest = withDraft()
               setInterests(latest)
@@ -420,7 +503,7 @@ function InterestSelection({ store, interests, setInterests, onNext }: {
               saveAndContinue(latest)
             }}
           />
-          <NaviButton title="건너뛰기" style="secondary" isEnabled={!isSaving} onClick={() => saveAndContinue(interests)} />
+          <NaviButton title="건너뛰고 시작하기" style="secondary" isLoading={isSaving} onClick={() => saveAndContinue(interests)} />
           {store.errorMessage && <InlineError message={store.errorMessage} />}
         </VStack>
       </VStack>
@@ -495,8 +578,8 @@ function ServiceConnection({ store, gmailConnected, calendarConnected, onConnect
             </HStack>
           )}
           {store.errorMessage && <InlineError message={store.errorMessage} />}
-          <NaviButton title="연결 완료" isEnabled={canComplete && !isConnecting && !isCompleting} onClick={complete} />
-          <NaviButton title="나중에 연결하고 시작하기" style="secondary" isEnabled={!isConnecting && !isCompleting} onClick={complete} />
+          <NaviButton title="연결 완료" isEnabled={canComplete && !isConnecting} isLoading={isCompleting} onClick={complete} />
+          <NaviButton title="나중에 연결하고 시작하기" style="secondary" isEnabled={!isConnecting} isLoading={isCompleting} onClick={complete} />
         </VStack>
       </VStack>
     </NaviCard>

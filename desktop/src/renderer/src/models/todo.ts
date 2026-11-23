@@ -238,8 +238,27 @@ export class TodoTabModel extends Observable {
     const lower = this.todos.filter((t) => t.id !== id && t.orderIndex < target.orderIndex).map((t) => t.orderIndex)
     const before = lower.length ? Math.max(...lower) : target.orderIndex - 2
     const newIndex = (before + target.orderIndex) / 2
-    this.update(id, (t) => ({ ...t, orderIndex: newIndex }))
+    const moveToToday = this.group(target) === 'today' && this.group(this.todo(id)!) !== 'today'
+    const today = startOfDay(new Date())
+    const updated = this.update(id, (t) => {
+      if (!moveToToday) return { ...t, orderIndex: newIndex }
+      const dueAt = t.dueAt ? new Date(t.dueAt) : new Date(today)
+      if (t.dueAt) dueAt.setFullYear(today.getFullYear(), today.getMonth(), today.getDate())
+      else dueAt.setHours(18, 0, 0, 0)
+      return { ...t, orderIndex: newIndex, dueAt, day: today }
+    })
     this.persist('순서를 저장하지 못했어요.', (store) => store.reorder([{ id, order_index: newIndex }]))
+    if (moveToToday && updated) this.saveFields(updated)
+  }
+
+  moveToToday(id: string): void {
+    const todo = this.todo(id)
+    if (!todo || this.group(todo) === 'today') return
+    const today = startOfDay(new Date())
+    const dueAt = todo.dueAt ? new Date(todo.dueAt) : new Date(today)
+    if (todo.dueAt) dueAt.setFullYear(today.getFullYear(), today.getMonth(), today.getDate())
+    else dueAt.setHours(18, 0, 0, 0)
+    this.setDeadline(dueAt, id)
   }
 
   // MARK: - Create
@@ -263,6 +282,19 @@ export class TodoTabModel extends Observable {
     await this.store?.createTodo(todo, draft.dueAt)
     this.todos = [...this.todos, todo]
     this.changed()
+    for (const title of draft.subtasks ?? []) {
+      const trimmed = title.trim()
+      if (!trimmed) continue
+      const subtask = { id: crypto.randomUUID(), title: trimmed, isDone: false }
+      try {
+        await this.store?.createSubtask(subtask, todo.id, todo.day ?? draft.dueAt)
+        todo.subtasks.push(subtask)
+        this.update(todo.id, (current) => withProgress({ ...current, subtasks: [...todo.subtasks] }))
+      } catch {
+        this.set('errorMessage', '할 일은 저장했지만 일부 하위 할 일을 추가하지 못했어요.')
+        break
+      }
+    }
     return todo
   }
 

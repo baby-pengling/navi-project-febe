@@ -116,7 +116,7 @@ function Messages({ model, session }: { model: ChatTabModel; session: ChatSessio
             />
           )
         )}
-        {isResponding && <span style={{ ...F.body(12), color: T.grayText }}>navi가 답변을 만들고 있어요…</span>}
+        {isResponding && <HStack spacing={8} style={{ ...F.body(12), color: T.grayText }}><span className="navi-loading-logo"><NaviMascot width={28} /></span>navi가 답변을 만들고 있어요…</HStack>}
         {model.errorMessage && <span style={{ ...F.body(12), color: T.red }}>{model.errorMessage}</span>}
       </VStack>
     </div>
