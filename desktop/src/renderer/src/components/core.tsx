@@ -108,10 +108,10 @@ export function NaviMascot({ width, shape, main, dot }: { width: number; shape?:
 }
 
 export function NaviLoadingStatus({ message, compact = false }: { message: string; compact?: boolean }) {
-  return <span role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(compact ? 10 : 12, 'light'), color: T.grayText }}>
-    <span className="navi-loading-logo"><NaviLogoMark width={compact ? 18 : 24} /></span>
-    {message}
-  </span>
+  return <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: compact ? 92 : 132, flex: '1 1 auto', textAlign: 'center', ...F.body(compact ? 11 : 12, 'light'), color: T.grayText }}>
+    <span className="navi-loading-logo"><NaviLogoMark width={compact ? 28 : 36} /></span>
+    <span>{message}</span>
+  </div>
 }
 
 export function Spinner({ small }: { small?: boolean }) {
@@ -365,7 +365,7 @@ export function NaviButton({ title, style = 'primary', isEnabled = true, isLoadi
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, ...F.body(11, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 3 }}><NaviLogoMark width={18} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, ...F.body(11, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 3 }}><NaviLogoMark width={21} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
@@ -418,7 +418,7 @@ export function NaviPillButton({ title, icon, style = 'accent', size = 'regular'
         opacity: disabled ? 0.6 : 1
       }}
     >
-      {isLoading ? <span className="navi-loading-logo" style={style === 'primary' ? { background: T.cardWhite, borderRadius: '50%', padding: 2 } : undefined}><NaviLogoMark width={16} /></span> : icon && <NaviIcon name={icon} />}
+      {isLoading ? <span className="navi-loading-logo" style={style === 'primary' ? { background: T.cardWhite, borderRadius: '50%', padding: 2 } : undefined}><NaviLogoMark width={20} /></span> : icon && <NaviIcon name={icon} />}
       <span style={isLoading ? F.body(10, 'light') : undefined}>{isLoading ? loadingMessage ?? `${title} 중…` : title}</span>
     </button>
   )
@@ -465,7 +465,7 @@ export function NaviDialogButton({ title, role = 'primary', isEnabled = true, is
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(10, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 2 }}><NaviLogoMark width={15} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(10, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 2 }}><NaviLogoMark width={20} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
