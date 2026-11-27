@@ -226,9 +226,9 @@ export function MainWindow({ store, onSignOut, onResetOnboarding }: {
 
   return (
     <PromptContext.Provider value={models.prompt}>
-      <div style={{ display: 'flex', gap: 10, padding: '10px 15px', height: '100%', background: T.canvas, position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 8, padding: '8px 10px', height: '100%', background: T.canvas, position: 'relative' }}>
         <Sidebar selection={selection} onSelect={setSelection} isCollapsed={isSidebarCollapsed} onToggle={() => setSidebarCollapsed((v) => !v)} />
-        <main style={{ flex: 1, minWidth: 0, padding: '0 10px', display: 'flex', flexDirection: 'column' }}>{content}</main>
+        <main style={{ flex: 1, minWidth: 0, padding: '0 6px', display: 'flex', flexDirection: 'column' }}>{content}</main>
 
         {/* Dialogs dim the whole window (sidebar included), per the Figma scrim. */}
         {(dialog || activeDialog?.kind === 'signOut') && (

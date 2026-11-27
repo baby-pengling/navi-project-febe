@@ -65,6 +65,29 @@ serve("mail", async ({ req, url, route, user, admin, body }) => {
     return json({ messages });
   }
 
+  if (method === "GET" && (params = match(route, "messages/:id/thread"))) {
+    const selected = await cachedMessage(admin, user.id, params.id);
+    const google = await googleFor(admin, user.id);
+    const thread = await google.get<{ messages?: GmailMessage[] }>(
+      `${GMAIL}/threads/${encodeURIComponent(selected.payload.thread_id)}?format=full`,
+    );
+    const messages = thread.messages ?? [];
+    if (messages.length === 0) return json({ messages: [] });
+    const rows = check(
+      await admin.from("mail_messages_cache").upsert(
+        messages.map((message) => ({
+          user_id: user.id,
+          gmail_message_id: message.id,
+          label_ids: message.labelIds ?? [],
+          payload: normalize(message),
+          cached_at: new Date().toISOString(),
+        })),
+        { onConflict: "user_id,gmail_message_id" },
+      ).select("id, gmail_message_id, label_ids, payload"),
+    ) ?? [];
+    return json({ messages: rows.map(present).sort((a, b) => a.received_at.localeCompare(b.received_at)) });
+  }
+
   if (method === "GET" && (params = match(route, "messages/:id"))) {
     const row = await cachedMessage(admin, user.id, params.id);
     // Refresh the selected message from Gmail. Older cache entries have only flattened text,
@@ -225,6 +248,7 @@ function present(row: CacheRow) {
   const mail = row.payload;
   return {
     id: row.id,
+    thread_id: mail.thread_id,
     from: mail.from,
     to: mail.to,
     subject: mail.subject,

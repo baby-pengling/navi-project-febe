@@ -21,6 +21,9 @@ import {
 import { DayTimeline, ErrorText, NaviCheckbox, NewEventPanel, TodoItemRow, dashboardMeta } from '@/components/shared'
 import { PrepAddedPanel, PrepDetailPanel, SuggestionCard } from '@/components/todoPanels'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { WidgetColumns, WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const CALENDAR_WIDGETS = [{ id: 'calendar', label: '캘린더' }, { id: 'detail', label: '일정 상세' }] as const
 
 const MODES: CalendarMode[] = ['week', 'month']
 
@@ -41,6 +44,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
   onStartPrep: () => void
 }) {
   useModel(model)
+  const widgets = useWidgetLayout('calendar', CALENDAR_WIDGETS)
   // Re-render when the linked todos change.
   useModel(model.todoModel)
 
@@ -119,8 +123,8 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
     }
   })()
 
-  const rightColumn = (width: number) => (
-    <VStack spacing={10} style={{ width, flexShrink: 0, minHeight: 0 }}>
+  const rightColumn = () => (
+    <VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
       <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
         {rightPanel}
       </VStack>
@@ -129,13 +133,14 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
   )
 
   return (
-    <VStack spacing={10} style={{ height: '100%' }}>
+    <VStack spacing={8} style={{ height: '100%' }}>
       <NaviTabHeader title="일정" searchPrompt="일정 검색" searchText={model.searchText} onSearchChange={(t) => model.set('searchText', t)} />
 
       {/* Toolbar: "2026년 9월", 주/월, ‹ 오늘 ›, 이번 주 미리 준비, 새 일정 */}
       <HStack spacing={15}>
         <span style={{ ...F.title(22), color: T.dark }}>{model.monthTitle}</span>
         <Spacer />
+        <WidgetLayoutButton control={widgets} />
         <NaviSegmentTabs items={MODES} selection={model.mode} onSelect={(m) => model.set('mode', m)} title={(m) => (m === 'week' ? '주' : '월')} />
         <HStack spacing={5}>
           {navButton(90, '이전', () => model.step(-1))}
@@ -180,7 +185,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
               )
             })}
           </HStack>
-          <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
+          <WidgetColumns id="calendar-week" initialLeft={68} visible={panel.kind === 'overview' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ calendar:
             <Pane spacing={15}>
               <span style={{ ...F.heading(18), color: T.ink }}>{model.dayTitle}</span>
               <DayTimeline
@@ -190,16 +195,14 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
                 onSelect={(e) => model.set('panel', { kind: 'eventDetail', id: e.id })}
               />
             </Pane>
-            {rightColumn(439)}
-          </HStack>
+          , detail: rightColumn() }} />
         </VStack>
       ) : (
-        <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
+        <WidgetColumns id="calendar-month" initialLeft={78} visible={panel.kind === 'overview' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ calendar:
           <div style={{ flex: 1, minWidth: 0, background: T.cardWhite, borderRadius: 10, overflow: 'hidden' }}>
             <MonthCalendarGrid model={model} />
           </div>
-          {rightColumn(284)}
-        </HStack>
+        , detail: rightColumn() }} />
       )}
     </VStack>
   )

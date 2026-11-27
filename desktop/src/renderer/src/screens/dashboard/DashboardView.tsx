@@ -9,6 +9,13 @@ import type { MainTab } from '../MainWindow'
 import { HStack, NaviCompressButton, NaviImage, NaviLoadingStatus, NaviMascot, NaviPanel, NaviPillButton, NaviSectionHeader, Spacer, VStack } from '@/components/core'
 import { DayTimeline, NewEventPanel, NewTodoPanel, TodoAddedPanel, TodoItemRow, dashboardMeta, clockTime, useNow, ErrorText } from '@/components/shared'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { WidgetBoard, WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const DASHBOARD_WIDGETS = [
+  { id: 'todo', label: '오늘 할 일' },
+  { id: 'mail', label: '중요 메일' },
+  { id: 'schedule', label: '오늘 일정' }
+] as const
 
 type RightPanel = { kind: 'schedule' } | { kind: 'newTodo' } | { kind: 'todoAdded'; todo: DashboardTodo } | { kind: 'newEvent' }
 
@@ -25,6 +32,7 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
   useModel(model)
   useModel(settingsModel)
   const [rightPanel, setRightPanel] = useState<RightPanel>({ kind: 'schedule' })
+  const widgets = useWidgetLayout('dashboard', DASHBOARD_WIDGETS)
   const now = useNow()
 
   useEffect(() => {
@@ -32,6 +40,9 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
   }, [model])
 
   const services = settingsModel.services
+  const visibleWidgets = rightPanel.kind === 'schedule' || widgets.visible.includes('schedule')
+    ? widgets.visible
+    : [...widgets.visible, 'schedule' as const]
 
   const rightColumn = (() => {
     switch (rightPanel.kind) {
@@ -96,10 +107,10 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
 
   return (
     <VStack spacing={0} style={{ height: '100%' }}>
-      <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
-        <Header now={now} name={settingsModel.name} />
-        <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
-          <VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+      <VStack spacing={8} style={{ flex: 1, minHeight: 0 }}>
+        <Header now={now} name={settingsModel.name} actions={<WidgetLayoutButton control={widgets} />} />
+        <WidgetBoard id="dashboard" initialLeft={70} compactFirst="todo" visible={visibleWidgets} style={{ paddingBottom: 6 }} panels={{
+          todo: <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}>
             <NaviPanel>
               <NaviSectionHeader
                 title="오늘 할 일"
@@ -120,7 +131,7 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
                     meta={dashboardMeta(todo)}
                     onToggle={() => model.toggleTodo(todo.id)}
                     onOpen={() => onSelectTab('todo')}
-                    onDropTodo={(dragged) => model.moveTodo(dragged, todo.id)}
+                    onDropTodo={(dragged, position) => model.moveTodo(dragged, todo.id, position)}
                   />
                 ))}
               </VStack>
@@ -130,7 +141,8 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
               </div>
             </NaviPanel>
 
-            <NaviPanel fillsHeight style={{ overflow: 'hidden' }}>
+          </div>,
+          mail: <NaviPanel fillsHeight style={{ overflow: 'hidden' }}>
               {services.mailConnected ? (
                 <>
                   <NaviSectionHeader title="중요 메일" tag={`${model.importantMails.length}개`} onViewAll={() => onSelectTab('mail')} />
@@ -151,30 +163,30 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
                   />
                 </>
               )}
-            </NaviPanel>
-          </VStack>
-          <div style={{ width: 418, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>{rightColumn}</div>
-        </HStack>
+            </NaviPanel>,
+          schedule: <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>{rightColumn}</div>
+        }} />
       </VStack>
       <NaviAssistantPrompt prompt="오늘 할 일을 정리해줘" />
     </VStack>
   )
 }
 
-function Header({ now, name }: { now: Date; name: string }) {
+function Header({ now, name, actions }: { now: Date; name: string; actions?: React.ReactNode }) {
   return (
-    <HStack spacing={14}>
+    <HStack spacing={14} style={{ width: '100%', height: 48, flexShrink: 0 }}>
       <span className="truncate" style={{ ...F.title(23), color: T.ink }}>
         {greeting(now, name)}
       </span>
       <Spacer />
+      {actions}
       <HStack spacing={5} aria-label={format(now, 'yyyy년 M월 d일 EEEE')}>
         <DateChip text={format(now, 'EEE')} />
         <DateChip text={format(now, 'MM')} />
         <DateChip text={format(now, 'dd')} />
       </HStack>
       <NaviMascot width={48} />
-      <NaviCompressButton compact />
+      <NaviCompressButton />
     </HStack>
   )
 }

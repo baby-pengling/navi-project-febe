@@ -10,7 +10,7 @@ export const T = {
   blue: '#3366CC', // Blue/Main
   blueLight: '#E8F0FF', // Blue/Light
   /** Floating widget surface behind its white cards. */
-  widgetBackground: '#F6F6F6', // White/Bg
+  widgetBackground: '#FAFAFA', // White/Bg
   /** Selected day column in the month grid. */
   selectedCell: 'var(--navi-selected, #F6F5FF)',
   grayText: '#75737A', // Gray/Text
@@ -29,11 +29,11 @@ export const T = {
   /** Row fill inside cards (todo rows, mail rows, settings rows). */
   itemBackground: '#F8FAFB', // White/Item
   /** Main-window canvas behind the white cards. */
-  canvas: '#F7F6F2', // White/Main
+  canvas: '#FAFAFA', // White/Main
   /** Darker than `border` on purpose: white text on #DBD9E0 is too faint. */
   disabled: '#A9A7AF',
   /** macOS windowBackgroundColor stand-in for onboarding. */
-  background: '#F6F6F6'
+  background: '#FAFAFA'
 } as const
 
 /// Parses `#RRGGBB` category colors; falls back to the brand purple for malformed values.

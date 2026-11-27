@@ -176,7 +176,9 @@ interface PersonDTO {
 
 interface MessageDTO {
   id: string
+  thread_id?: string | null
   from: PersonDTO
+  to?: string[] | null
   subject?: string | null
   snippet?: string | null
   body_text?: string | null
@@ -242,6 +244,12 @@ export class MailService {
     return { body: row.body_text ?? row.snippet ?? '', bodyHtml: row.body_html ?? undefined }
   }
 
+  /// Every message in a selected Gmail conversation, including older and sent replies.
+  async thread(id: string): Promise<MailMessage[]> {
+    const response = await this.edge.call<{ messages: MessageDTO[] }>('GET', `mail/messages/${id.toLowerCase()}/thread`)
+    return response.messages.map((row) => MailService.message(row, new Map()))
+  }
+
   /// Cached AI summary, reply suggestion, and first suggested todo.
   async insight(id: string): Promise<MailInsight> {
     const dto = await this.edge.call<{
@@ -275,7 +283,9 @@ export class MailService {
   static message(row: MessageDTO, labels: Map<string, string>): MailMessage {
     return {
       id: row.id,
+      threadId: row.thread_id ?? undefined,
       sender: { name: row.from.name ?? '', email: row.from.email },
+      to: row.to ?? [],
       subject: row.subject ?? '(제목 없음)',
       body: row.body_text ?? row.snippet ?? '',
       bodyHtml: row.body_html ?? undefined,

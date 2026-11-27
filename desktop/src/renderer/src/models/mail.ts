@@ -12,6 +12,17 @@ export const mailFilterTitle = (filter: MailFilter): string =>
 export const sameMailFilter = (a: MailFilter, b: MailFilter): boolean =>
   a.kind === b.kind && (a.kind !== 'category' || a.name === (b as { name: string }).name)
 
+function conversationKey(message: MailMessage, self: string): string {
+  if (message.threadId) return `thread:${message.threadId}`
+  const subject = message.subject.replace(/^(?:(?:re|fw|fwd)\s*:\s*)+/gi, '').trim().toLowerCase()
+  if (!subject || subject === '(제목 없음)') return `message:${message.id}`
+  const others = [message.sender.email, ...(message.to ?? [])]
+    .map((address) => address.trim().toLowerCase())
+    .filter((address) => address && address !== self.toLowerCase())
+    .sort()
+  return others.length ? `subject:${subject}|${[...new Set(others)].join(',')}` : `message:${message.id}`
+}
+
 export type MailPanel =
   | { kind: 'empty' }
   | { kind: 'detail'; id: string }
@@ -37,6 +48,8 @@ export class MailTabModel extends Observable {
 
   readonly senderAddress: string
   private loadedSummaryIDs = new Set<string>()
+  private threadCache = new Map<string, MailMessage[]>()
+  private loadingThreadKeys = new Set<string>()
 
   constructor(
     private todoModel: TodoTabModel,
@@ -108,7 +121,31 @@ export class MailTabModel extends Observable {
       .sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime())
   }
 
+  get visibleConversations(): { latest: MailMessage; count: number }[] {
+    const seen = new Set<string>()
+    return this.visibleMessages.flatMap((message) => {
+      const key = conversationKey(message, this.senderAddress)
+      if (seen.has(key)) return []
+      seen.add(key)
+      return [{ latest: message, count: this.threadMessages(message).length }]
+    })
+  }
+
+  threadMessages(message: MailMessage): MailMessage[] {
+    const key = conversationKey(message, this.senderAddress)
+    return (this.threadCache.get(key) ?? this.messages.filter((candidate) => conversationKey(candidate, this.senderAddress) === key))
+      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime())
+  }
+
+  isLoadingThread(message: MailMessage): boolean {
+    return this.loadingThreadKeys.has(conversationKey(message, this.senderAddress))
+  }
+
   message(id: string): MailMessage | undefined {
+    for (const messages of this.threadCache.values()) {
+      const found = messages.find((message) => message.id === id)
+      if (found) return found
+    }
     return this.messages.find((m) => m.id === id)
   }
 
@@ -128,6 +165,7 @@ export class MailTabModel extends Observable {
 
   private updateMessage(id: string, change: Partial<MailMessage>): void {
     this.messages = this.messages.map((m) => (m.id === id ? { ...m, ...change } : m))
+    this.threadCache.forEach((messages, key) => this.threadCache.set(key, messages.map((message) => message.id === id ? { ...message, ...change } : message)))
     this.changed()
   }
 
@@ -137,6 +175,22 @@ export class MailTabModel extends Observable {
   open(id: string): void {
     this.set('panel', { kind: 'detail', id })
     const mail = this.services?.mail
+    const selected = this.message(id)
+    if (mail && selected) {
+      const key = conversationKey(selected, this.senderAddress)
+      if (!this.threadCache.has(key) && !this.loadingThreadKeys.has(key)) {
+        this.loadingThreadKeys.add(key)
+        this.changed()
+        mail.thread(id).then((messages) => {
+          this.threadCache.set(key, messages.map((fresh) => {
+            const previous = this.message(fresh.id)
+            return previous ? { ...fresh, bodyHtml: previous.bodyHtml ?? fresh.bodyHtml, summary: previous.summary, suggestedTodo: previous.suggestedTodo, replyDraft: previous.replyDraft } : fresh
+          }))
+          this.changed()
+        }).catch(() => { /* The inbox messages remain available if the thread endpoint is unavailable. */ })
+          .finally(() => { this.loadingThreadKeys.delete(key); this.changed() })
+      }
+    }
     if (!mail || this.loadingSummaryIDs.has(id) || (this.loadedSummaryIDs.has(id) && this.message(id)?.bodyHtml)) return
     this.loadingSummaryIDs = new Set(this.loadingSummaryIDs).add(id)
     this.changed()

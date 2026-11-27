@@ -56,24 +56,62 @@ export function NaviLogoMark({ width }: { width: number }) {
 }
 
 export function NaviMascot({ width, shape, main, dot }: { width: number; shape?: AgentShape; main?: string; dot?: string }) {
-  return <svg role="img" aria-label="navi 캐릭터" className={`navi-mascot ${shape ? `shape-${shape}` : 'shape-current'}`} viewBox="0 0 120 100" width={width} height={width * 100 / 120} style={{ flexShrink: 0, overflow: 'visible', '--mascot-main': main ?? 'var(--navi-mascot-main, #7165FF)', '--mascot-dot': dot ?? T.lime } as CSSProperties}>
+  const mascotRef = useRef<SVGSVGElement>(null)
+  const eyesRef = useRef<SVGGElement>(null)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let frame = 0
+    let pointer = { x: 0, y: 0 }
+    const moveEyes = () => {
+      const rect = mascotRef.current?.getBoundingClientRect()
+      if (!rect || !eyesRef.current || rect.width === 0) return
+      const dx = pointer.x - (rect.left + rect.width / 2)
+      const dy = pointer.y - (rect.top + rect.height / 2)
+      const distance = Math.hypot(dx, dy) || 1
+      const amount = Math.min(distance / 110, 1) * 3.5
+      eyesRef.current.setAttribute('transform', `translate(${(dx / distance * amount).toFixed(2)} ${(dy / distance * amount).toFixed(2)})`)
+      frame = 0
+    }
+    const onMove = (event: PointerEvent) => {
+      pointer = { x: event.clientX, y: event.clientY }
+      if (!frame) frame = requestAnimationFrame(moveEyes)
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  const bounce = () => {
+    const element = mascotRef.current
+    if (!element) return
+    element.classList.remove('navi-bounce')
+    void element.getBoundingClientRect()
+    element.classList.add('navi-bounce')
+  }
+
+  return <svg ref={mascotRef} onPointerDown={bounce} onAnimationEnd={() => mascotRef.current?.classList.remove('navi-bounce')} role="img" aria-label="navi 캐릭터" className={`navi-mascot ${shape ? `shape-${shape}` : 'shape-current'}`} viewBox="0 0 120 100" width={width} height={width * 100 / 120} style={{ flexShrink: 0, overflow: 'visible', '--mascot-main': main ?? 'var(--navi-mascot-main, #7165FF)', '--mascot-dot': dot ?? T.lime } as CSSProperties}>
     <path className="navi-shape navi-shape-dome" d="M13 75C13 44 31 15 58 15c29 0 46 26 46 60 0 14-15 18-46 18S13 89 13 75Z" />
     <path className="navi-shape navi-shape-cloud" d="M15 73c-8-17 0-34 16-39 5-19 31-25 44-9 18-3 30 10 27 25 10 15 2 36-19 41H38C25 91 18 85 15 73Z" />
     <path className="navi-shape navi-shape-square" d="M38 15h42c17 0 25 10 25 26v29c0 16-9 23-25 23H38c-17 0-25-8-25-24V39c0-16 9-24 25-24Z" />
     <path className="navi-shape navi-shape-bean" d="M55 14c17-6 25 7 36 26 12 19 20 32 11 45-6 9-23 10-44 9-23 0-40-2-46-11-8-13 2-31 14-47 10-13 19-20 29-22Z" />
     <path className="navi-shape navi-shape-star" d="M59 12c10 0 13 17 21 21 7 5 23 5 26 15 3 9-10 20-10 28 0 9 3 17-5 21-8 5-22-5-32-5s-23 10-32 5c-9-5-5-17-6-24-2-8-13-16-10-25 3-10 20-11 27-16 8-5 11-20 21-20Z" />
     <circle cx="45" cy="49" r="12" fill="white"/><circle cx="75" cy="49" r="12" fill="white"/>
-    <circle cx="41" cy="47" r="6" fill="#19191C"/><circle cx="71" cy="47" r="6" fill="#19191C"/>
-    <path d="M43 43l.8 1.8L45.6 45.6l-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L43 43Z M73 43l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L73 43Z" fill="white" />
+    <g ref={eyesRef}>
+      <circle cx="41" cy="47" r="6" fill="#19191C"/><circle cx="71" cy="47" r="6" fill="#19191C"/>
+      <path d="M43 43l.8 1.8L45.6 45.6l-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L43 43Z M73 43l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L73 43Z" fill="white" />
+    </g>
     <circle cx="111" cy="83" r="8" fill="var(--mascot-dot)"/>
   </svg>
 }
 
 export function NaviLoadingStatus({ message, compact = false }: { message: string; compact?: boolean }) {
-  return <span role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(compact ? 10 : 12, 'light'), color: T.grayText }}>
-    <span className="navi-loading-logo"><NaviLogoMark width={compact ? 18 : 24} /></span>
-    {message}
-  </span>
+  return <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: compact ? 92 : 132, flex: '1 1 auto', textAlign: 'center', ...F.body(compact ? 11 : 12, 'light'), color: T.grayText }}>
+    <span className="navi-loading-logo"><NaviLogoMark width={compact ? 28 : 36} /></span>
+    <span>{message}</span>
+  </div>
 }
 
 export function Spinner({ small }: { small?: boolean }) {
@@ -327,7 +365,7 @@ export function NaviButton({ title, style = 'primary', isEnabled = true, isLoadi
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, ...F.body(11, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 3 }}><NaviLogoMark width={18} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, ...F.body(11, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 3 }}><NaviLogoMark width={21} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
@@ -380,7 +418,7 @@ export function NaviPillButton({ title, icon, style = 'accent', size = 'regular'
         opacity: disabled ? 0.6 : 1
       }}
     >
-      {isLoading ? <span className="navi-loading-logo" style={style === 'primary' ? { background: T.cardWhite, borderRadius: '50%', padding: 2 } : undefined}><NaviLogoMark width={16} /></span> : icon && <NaviIcon name={icon} />}
+      {isLoading ? <span className="navi-loading-logo" style={style === 'primary' ? { background: T.cardWhite, borderRadius: '50%', padding: 2 } : undefined}><NaviLogoMark width={20} /></span> : icon && <NaviIcon name={icon} />}
       <span style={isLoading ? F.body(10, 'light') : undefined}>{isLoading ? loadingMessage ?? `${title} 중…` : title}</span>
     </button>
   )
@@ -427,13 +465,13 @@ export function NaviDialogButton({ title, role = 'primary', isEnabled = true, is
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(10, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 2 }}><NaviLogoMark width={15} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(10, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 2 }}><NaviLogoMark width={20} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
 
 /// Figma "Resize Button / Compress": hides the main window and shows the floating mini widget.
-export function NaviCompressButton({ compact = false }: { compact?: boolean }) {
+export function NaviCompressButton() {
   return (
     <button
       type="button"
@@ -446,15 +484,15 @@ export function NaviCompressButton({ compact = false }: { compact?: boolean }) {
         background: T.purple,
         borderRadius: 5,
         padding: 8,
-        width: compact ? 36 : 44,
-        height: compact ? 35 : 42,
+        width: 36,
+        height: 35,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0
       }}
     >
-      <NaviIcon name="IconCompress" size={compact ? 19 : 24} style={{ transform: 'rotate(90deg)' }} />
+      <NaviIcon name="IconCompress" size={19} style={{ transform: 'rotate(90deg)' }} />
     </button>
   )
 }
@@ -462,7 +500,7 @@ export function NaviCompressButton({ compact = false }: { compact?: boolean }) {
 // MARK: - Main window building blocks
 
 /// White rounded card that holds each main-window section.
-export function NaviPanel({ spacing = 10, horizontalPadding = 20, verticalPadding = 15, fillsHeight, children, style }: {
+export function NaviPanel({ spacing = 8, horizontalPadding = 16, verticalPadding = 12, fillsHeight, children, style }: {
   spacing?: number
   horizontalPadding?: number
   verticalPadding?: number
@@ -604,10 +642,10 @@ export function NaviTabHeader({ title, searchPrompt, searchText, onSearchChange,
   isSearchEnabled?: boolean
 }) {
   return (
-    <HStack>
+    <HStack style={{ width: '100%', height: 48, flexShrink: 0 }}>
       <span style={{ ...F.title(28), color: T.ink }}>{title}</span>
       <Spacer />
-      <HStack spacing={10}>
+      <HStack spacing={10} style={{ height: '100%' }}>
         <HStack
           spacing={5}
           style={{

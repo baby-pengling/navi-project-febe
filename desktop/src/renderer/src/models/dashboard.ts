@@ -71,7 +71,7 @@ export class DashboardModel extends Observable {
         this.store.todoCategories(),
         this.store.calendarCategories()
       ])
-      this.todos = todos
+      this.todos = todos.sort((a, b) => a.orderIndex - b.orderIndex)
       this.todoCategories = todoCategories
       this.calendarCategories = calendarCategories
     } catch {
@@ -96,40 +96,20 @@ export class DashboardModel extends Observable {
     })
   }
 
-  /// Drag-and-drop reorder: the dragged todo takes the drop target's position. Only the moved
-  /// row gets a new `order_index` (midway between its neighbors); the whole list is renumbered
-  /// when the gap gets too small to split.
-  moveTodo(id: string, targetID: string): void {
+  /// Drag-and-drop reorder: keep the on-screen order and persisted order_index in sync.
+  moveTodo(id: string, targetID: string, position: 'before' | 'after' = 'before'): void {
     const from = this.todos.findIndex((t) => t.id === id)
-    const to = this.todos.findIndex((t) => t.id === targetID)
-    if (id === targetID || from < 0 || to < 0) return
+    if (id === targetID || from < 0 || !this.todos.some((t) => t.id === targetID)) return
 
     const previous = this.todos
     const reordered = [...this.todos]
     const [todo] = reordered.splice(from, 1)
-    reordered.splice(to, 0, { ...todo })
-
-    const before = to > 0 ? reordered[to - 1].orderIndex : undefined
-    const after = to < reordered.length - 1 ? reordered[to + 1].orderIndex : undefined
-    let updates: TodoOrderUpdate[]
-    if (before !== undefined && after !== undefined && after - before > 1e-6) {
-      reordered[to].orderIndex = (before + after) / 2
-      updates = [{ id, order_index: reordered[to].orderIndex }]
-    } else if (before !== undefined && after === undefined) {
-      reordered[to].orderIndex = before + 1
-      updates = [{ id, order_index: reordered[to].orderIndex }]
-    } else if (before === undefined && after !== undefined) {
-      reordered[to].orderIndex = after - 1
-      updates = [{ id, order_index: reordered[to].orderIndex }]
-    } else {
-      reordered.forEach((t, index) => {
-        reordered[index] = { ...t, orderIndex: index + 1 }
-      })
-      updates = reordered.map((t) => ({ id: t.id, order_index: t.orderIndex }))
-    }
-    this.todos = reordered
+    const targetIndex = reordered.findIndex((t) => t.id === targetID)
+    reordered.splice(targetIndex + (position === 'after' ? 1 : 0), 0, todo)
+    this.todos = reordered.map((item, index) => ({ ...item, orderIndex: index + 1 }))
     this.changed()
 
+    const updates: TodoOrderUpdate[] = this.todos.map((item) => ({ id: item.id, order_index: item.orderIndex }))
     this.store?.reorder(updates).catch(() => {
       this.todos = previous
       this.errorMessage = '순서를 저장하지 못했어요. 다시 시도해 주세요.'

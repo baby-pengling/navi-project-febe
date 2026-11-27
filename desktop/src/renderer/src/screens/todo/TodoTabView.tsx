@@ -7,7 +7,6 @@ import {
   HStack,
   NaviCategoryTag,
   NaviGroupSubtitle,
-  NaviIcon,
   NaviLoadingStatus,
   NaviPillButton,
   NaviPromptInput,
@@ -20,12 +19,16 @@ import {
 import { ErrorText, NaviCheckbox, NewTodoPanel, TodoAddedPanel, TodoItemRow } from '@/components/shared'
 import { Card, DeadlinePanel, PrepAddedPanel, PrepDetailPanel, TodoDetailPanel, WeeklyPrepPanel } from '@/components/todoPanels'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { WidgetColumns, WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const TODO_WIDGETS = [{ id: 'list', label: '기한별 할 일' }, { id: 'detail', label: '상세 · 흐름' }] as const
 
 /// Figma "10 - 할 일": filter tabs, the deadline-grouped list with a quick-add bar on the
 /// left, and a right column that swaps between the overview (오늘의 흐름 + 카테고리), todo
 /// detail, deadline picker, new todo, and weekly-prep panels.
 export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onAddCategory: () => void }) {
   useModel(model)
+  const widgets = useWidgetLayout('todo', TODO_WIDGETS)
 
   useEffect(() => {
     void model.load()
@@ -33,11 +36,11 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
 
   const panel = model.panel
   const [expandedTodos, setExpandedTodos] = useState<Set<string>>(new Set())
+  const [draggingTodoID, setDraggingTodoID] = useState<string | null>(null)
   const selectTodo = (todo: DashboardTodo) => {
     setExpandedTodos((current) => current.has(todo.id) ? new Set() : todo.subtasks.length ? new Set([todo.id]) : new Set())
     model.set('panel', { kind: 'detail', id: todo.id })
   }
-  const rightWidth = 308
   const overview = () => model.set('panel', { kind: 'overview' })
 
   const isSelected = (todo: DashboardTodo) => (panel.kind === 'detail' || panel.kind === 'deadline') && panel.id === todo.id
@@ -97,34 +100,37 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
   })()
 
   const emptyMessage = model.searchText ? '검색 결과가 없어요.' : '할 일이 없어요. 아래 입력창이나 "새 할 일"로 추가해 보세요.'
+  const groupedTodos = model.groupedTodos
+  const afterOverdue = groupedTodos.findIndex((section) => section.group !== 'overdue')
+  const todayInsertIndex = afterOverdue < 0 ? groupedTodos.length : afterOverdue
+  const sections = draggingTodoID && ['all', 'today', 'thisWeek'].includes(model.filter) && !groupedTodos.some((section) => section.group === 'today')
+    ? [...groupedTodos.slice(0, todayInsertIndex),
+      { group: 'today' as const, todos: [] },
+      ...groupedTodos.slice(todayInsertIndex)]
+    : groupedTodos
 
   return (
-    <VStack spacing={10} style={{ height: '100%' }}>
+    <VStack spacing={8} style={{ height: '100%' }}>
       <NaviTabHeader title="할 일" searchPrompt="할 일 검색" searchText={model.searchText} onSearchChange={(t) => model.set('searchText', t)} />
       <HStack spacing={15}>
         <NaviSegmentTabs items={TODO_FILTERS} selection={model.filter} onSelect={(f) => model.set('filter', f)} title={(f) => filterTitle[f]} />
         <Spacer />
+        <WidgetLayoutButton control={widgets} />
         <NaviPillButton title="이번 주 미리 준비" size="large" onClick={() => model.openPrep()} />
         <NaviPillButton title="새 할 일" icon="IconPlus" style="primary" size="large" onClick={() => model.set('panel', { kind: 'newTodo' })} />
       </HStack>
 
-      <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
-        <VStack spacing={10} style={{ flex: 1, minWidth: 0 }}>
+      <WidgetColumns id="todo" initialLeft={74} visible={panel.kind === 'overview' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ list:
+        <VStack spacing={8} style={{ flex: 1, minWidth: 0 }}>
           <VStack spacing={20} style={{ flex: 1, minHeight: 0, padding: '15px 20px', background: T.cardWhite, borderRadius: 10 }}>
             <HStack>
               <span style={{ ...F.heading(18), color: T.ink }}>기한별 할 일</span>
               <Spacer />
-              <button
-                type="button"
-                title={model.showsCompleted ? '완료한 할 일 숨기기' : '완료한 할 일 보기'}
-                onClick={() => model.set('showsCompleted', !model.showsCompleted)}
-                style={{ ...F.body(12), color: T.grayText, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 5px 5px 10px' }}
-              >
+              <span style={{ ...F.body(12), color: T.grayText, padding: '5px 0' }}>
                 미완료 {model.openCount} · 완료 {model.doneCount}
-                <NaviIcon name="IconChevron" style={{ transform: `rotate(${model.showsCompleted ? -90 : 0}deg)` }} />
-              </button>
+              </span>
             </HStack>
-            <VStack spacing={20} className="scroll" style={{ flex: 1, minHeight: 0 }}>
+            <VStack spacing={20} className="scroll" style={{ flex: 1, minHeight: 0 }} onDragStart={(event) => setDraggingTodoID(event.dataTransfer.getData('application/x-navi-todo') || null)} onDragEnd={() => setDraggingTodoID(null)}>
               {model.errorMessage && <ErrorText>{model.errorMessage}</ErrorText>}
               {model.isLoading && <NaviLoadingStatus message="할 일을 불러오는 중…" compact />}
               {!model.isLoading && model.groupedTodos.length === 0 && (
@@ -132,11 +138,12 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
                   {emptyMessage}
                 </span>
               )}
-              {model.groupedTodos.map((section) => (
+              {sections.map((section) => (
                 <VStack key={section.group} spacing={10}
-                  onDragOver={section.group === 'today' ? (event) => { if (event.dataTransfer.types.includes('application/x-navi-todo')) event.preventDefault() } : undefined}
-                  onDrop={section.group === 'today' ? (event) => { const id = event.dataTransfer.getData('application/x-navi-todo'); if (id) { event.preventDefault(); model.moveToToday(id) } } : undefined}>
+                  onDragOver={section.group === 'today' ? (event) => { if (event.dataTransfer.types.includes('application/x-navi-todo') || event.dataTransfer.types.includes('text/plain')) event.preventDefault() } : undefined}
+                  onDrop={section.group === 'today' ? (event) => { const id = event.dataTransfer.getData('application/x-navi-todo') || event.dataTransfer.getData('text/plain'); if (id) { event.preventDefault(); model.moveToToday(id); setDraggingTodoID(null) } } : undefined}>
                   <NaviGroupSubtitle title={groupTitle[section.group]} count={section.todos.length} isAlert={section.group === 'overdue'} />
+                  {section.group === 'today' && section.todos.length === 0 && draggingTodoID && <div style={{ ...F.body(11), color: T.purple, background: T.lavender, border: `1px dashed ${T.purple}`, borderRadius: 6, padding: '12px 16px' }}>여기에 놓으면 기한이 오늘로 바뀝니다</div>}
                   {section.todos.map((todo) => (
                     <VStack key={todo.id} spacing={4} style={isSelected(todo) && todo.subtasks.length > 0 && expandedTodos.has(todo.id) ? { background: T.lavender, border: `1px solid ${T.purple}`, borderRadius: 6, paddingBottom: 4 } : undefined}>
                     <TodoItemRow
@@ -148,7 +155,7 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
                       onToggle={() => model.toggle(todo.id)}
                       onOpen={() => selectTodo(todo)}
                       onClick={() => selectTodo(todo)}
-                      onDropTodo={(dragged) => model.move(dragged, todo.id)}
+                      onDropTodo={(dragged, position) => model.move(dragged, todo.id, position)}
                     />
                     {expandedTodos.has(todo.id) && todo.subtasks.map((subtask) => (
                       <div key={subtask.id} onClick={() => model.set('panel', { kind: 'detail', id: todo.id })} style={{ ...F.body(12), color: subtask.isDone ? T.grayText : T.ink, display: 'flex', alignItems: 'center', gap: 9, padding: '6px 12px 6px 52px', textAlign: 'left', textDecoration: subtask.isDone ? 'line-through' : undefined, cursor: 'pointer' }}>
@@ -164,14 +171,12 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
           </VStack>
           <NaviPromptInput prompt="- [ ] 할 일을 입력하세요  /기한  #카테고리" action="enter" onSubmit={(text) => model.quickAdd(text)} />
         </VStack>
-
-        <VStack spacing={10} style={{ width: rightWidth, flexShrink: 0, minHeight: 0 }}>
+      , detail: <VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
             {rightPanel}
           </VStack>
           <NaviAssistantPrompt prompt="내가 놓친 할 일이 있어?" />
-        </VStack>
-      </HStack>
+        </VStack> }} />
     </VStack>
   )
 }

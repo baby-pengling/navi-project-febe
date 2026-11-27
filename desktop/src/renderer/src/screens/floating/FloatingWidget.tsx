@@ -13,16 +13,23 @@ import {
   NaviFieldBox,
   NaviIcon,
   NaviLogoMark,
+  NaviLoadingStatus,
   NaviMascot,
   NaviMenu,
   NaviPanelHeader,
   NaviPillButton,
-  NaviPromptInput,
   Spacer,
   VStack
 } from '@/components/core'
 import { DragHandle, NaviCheckbox, NewEventPanel, ScheduleBlock, clockTime, timeRange } from '@/components/shared'
 import { DeadlinePanel, deadlineText } from '@/components/todoPanels'
+import { WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const FLOATING_WIDGETS = [
+  { id: 'mail', label: '최근 메일' },
+  { id: 'events', label: '오늘 일정' },
+  { id: 'todo', label: '할 일' }
+] as const
 
 // Port of FloatingWidgetView.swift and FloatingScreens.swift (Figma "03-1 Floating UI"). The
 // widget runs in its own transparent, always-on-top window; this view reports its size so the
@@ -32,7 +39,7 @@ type OpenMain = (tab: string | null) => void
 
 /// Panel width. Figma's frames vary between 370 and 398pt per screen; the widget keeps the
 /// home screen's width so it doesn't jump while navigating.
-const PANEL_WIDTH = 398
+const PANEL_WIDTH = 360
 
 const noDrag = { WebkitAppRegion: 'no-drag' } as CSSProperties
 const drag = { WebkitAppRegion: 'drag' } as CSSProperties
@@ -254,17 +261,6 @@ function HeaderButtons({ openMain }: { openMain: OpenMain }) {
 
 // MARK: - Shared pieces
 
-/// Figma "Input" at the bottom of the widget. The assistant isn't connected yet, so sending
-/// only clears the field.
-function PromptInput({ prompt, isOutlined }: { prompt: string; isOutlined?: boolean }) {
-  return (
-    <div style={{ borderRadius: 12, border: `1px solid ${isOutlined ? T.border : 'transparent'}` }}>
-      {/* TODO: Send to the `assistant` Edge Function once the widget is wired up. */}
-      <NaviPromptInput prompt={prompt} onSubmit={() => {}} />
-    </div>
-  )
-}
-
 /// Full-width button under the widget cards ("새 일정 만들기", "이번 주 미리 준비하기").
 function WideButton({ title, isPrimary, onClick }: { title: string; isPrimary?: boolean; onClick: () => void }) {
   return (
@@ -298,85 +294,85 @@ function Card({ children, spacing = 10, padding = '10px 10px' }: { children: Rea
 
 // MARK: - Home
 
-/// Figma "00 - 브리핑 · 시작": greeting, then 중요 메일 / 오늘 일정 / 미리 준비할 일 cards.
+/// Compact glance view; full lists and detail screens remain one tap away.
 function HomeScreen({ model, openMain }: { model: FloatingWidgetModel; openMain: OpenMain }) {
+  const widgets = useWidgetLayout('floating', FLOATING_WIDGETS)
   const now = new Date()
   const hour = now.getHours()
   const salutation = hour >= 5 && hour < 12 ? '좋은 아침이에요' : hour >= 12 && hour < 18 ? '좋은 오후예요' : '좋은 저녁이에요'
   const greeting = model.userName ? `${salutation}, ${model.userName}님.` : `${salutation}.`
-  const itemCount = model.mails.length + model.events.length + model.openTodos.length
+  const sections = {
+    mail: <WidgetSummarySection title="최근 메일" count={model.mails.length} icon="SidebarMail" onViewAll={() => model.setScreen({ kind: 'mails' })}>
+      {model.mails.length === 0 ? <WidgetEmpty text="새 메일이 없어요" /> : model.mails.slice(0, 2).map((mail) => (
+        <WidgetSummaryRow key={mail.id} title={mail.briefTitle} detail={mail.message.sender.name} onClick={() => model.setScreen({ kind: 'mailDetail', id: mail.id })} />
+      ))}
+    </WidgetSummarySection>,
+    events: <WidgetSummarySection title="오늘 일정" count={model.events.length} icon="SidebarCalendar" onViewAll={() => model.setScreen({ kind: 'events' })}>
+      {model.events.length === 0 ? <WidgetEmpty text="예정된 일정이 없어요" /> : model.sortedEvents.slice(0, 2).map((event) => (
+        <WidgetSummaryRow key={event.id} title={event.title} detail={clockTime(event.startAt)} onClick={() => model.setScreen({ kind: 'eventDetail', id: event.id })} />
+      ))}
+    </WidgetSummarySection>,
+    todo: <WidgetSummarySection title="할 일" count={model.openTodos.length} icon="SidebarTodo" onViewAll={() => model.setScreen({ kind: 'todos' })}>
+      {model.openTodos.length === 0 ? <WidgetEmpty text="오늘 할 일이 없어요" /> : model.openTodos.slice(0, 2).map((todo) => (
+        <WidgetSummaryRow key={todo.id} title={todo.title} detail={todo.dueAt ? FloatingWidgetModel.time(todo.dueAt) : undefined} onClick={() => model.setScreen({ kind: 'todoDetail', id: todo.id })} />
+      ))}
+    </WidgetSummarySection>
+  }
   return (
     <Chrome
-      title={greeting}
+      title="오늘의 브리핑"
       subtitle={format(now, 'M월 d일 EEEE · a h:mm')}
-      caption={model.isLoading ? '메일과 일정, 할 일을 불러오는 중이에요…' : `확인할 항목 ${itemCount}개를 정리했어요.`}
+      caption={greeting}
       openMain={openMain}
     >
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><WidgetLayoutButton control={widgets} inline /></div>
       {model.loadError && <span style={{ ...F.body(11), color: T.red }}>{model.loadError}</span>}
-      <BriefSection title={`최근 메일 ${model.mails.length}개`} icon="SidebarMail" tint={T.purple} wash={T.lavender} onViewAll={() => model.setScreen({ kind: 'mails' })}>
-        {!model.isLoading && model.mails.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>표시할 메일이 없어요.</span>}
-        {model.mails.map((mail, index) => (
-          <BriefItem key={mail.id} badge={String(index + 1)} title={mail.briefTitle} tint={T.purple} onClick={() => model.setScreen({ kind: 'mailDetail', id: mail.id })} />
-        ))}
-      </BriefSection>
-      <BriefSection title={`오늘 일정 ${model.events.length}개`} icon="SidebarCalendar" tint={T.blue} wash={T.blueLight} onViewAll={() => model.setScreen({ kind: 'events' })}>
-        {!model.isLoading && model.events.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>오늘 일정이 없어요.</span>}
-        {model.sortedEvents.map((event) => (
-          <BriefItem key={event.id} badge={clockTime(event.startAt)} title={event.title} tint={T.blue} onClick={() => model.setScreen({ kind: 'eventDetail', id: event.id })} />
-        ))}
-      </BriefSection>
-      <BriefSection title={`미리 준비할 일 ${model.openTodos.length}개`} icon="SidebarTodo" tint={T.green} wash={T.greenLight} onViewAll={() => model.setScreen({ kind: 'todos' })}>
-        {!model.isLoading && model.openTodos.length === 0 && <span style={{ ...F.body(11), color: T.grayText }}>오늘 할 일이 없어요.</span>}
-        {model.openTodos.map((todo) => (
-          <TodoRow key={todo.id} todo={todo} model={model} />
-        ))}
-      </BriefSection>
-      <PromptInput prompt="내가 놓친 할 일이 있어?" isOutlined />
+      {model.isLoading ? <Card><NaviLoadingStatus message="오늘의 정보를 불러오는 중…" compact /></Card> : <Card spacing={0} padding="4px 12px">
+        {widgets.visible.map((id) => <div key={id}>{sections[id]}</div>)}
+      </Card>}
     </Chrome>
   )
 }
 
-/// Figma "Brief Title" + list: a tinted subtitle chip with the section icon, "전체 보기 ›".
-function BriefSection({ title, icon, tint, wash, onViewAll, children }: {
+function WidgetSummarySection({ title, count, icon, onViewAll, children }: {
   title: string
+  count: number
   icon: string
-  tint: string
-  wash: string
   onViewAll: () => void
   children: ReactNode
 }) {
   return (
-    <Card spacing={8} padding="7px 10px">
-      <HStack>
-        <HStack spacing={6} style={{ color: tint, background: wash, padding: '2px 5px', borderRadius: 5 }}>
-          <span style={{ width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <NaviIcon name={icon} size={13} />
-          </span>
-          <span style={F.heading(12)}>{title}</span>
+    <VStack spacing={5} style={{ padding: '10px 0', borderBottom: title === '할 일' ? 'none' : `1px solid ${T.borderLight}` }}>
+      <HStack spacing={6}>
+        <HStack spacing={7} style={{ color: T.purple }}>
+          <NaviIcon name={icon} size={14} />
+          <span style={{ ...F.heading(12), color: T.dark }}>{title}</span>
+          <span style={{ ...F.body(10), color: T.purple, background: T.lavender, borderRadius: 9, padding: '1px 6px' }}>{count}</span>
         </HStack>
         <Spacer />
-        <button type="button" onClick={onViewAll} style={{ ...F.body(12), color: T.grayText, display: 'flex', alignItems: 'center', gap: 5, padding: '0 5px' }}>
+        <button type="button" onClick={onViewAll} style={{ ...F.body(10), color: T.grayText, display: 'flex', alignItems: 'center', gap: 3, padding: '2px 4px' }}>
           전체 보기
           <NaviIcon name="IconChevron" style={{ transform: 'rotate(-90deg)' }} />
         </button>
       </HStack>
-      <VStack spacing={5}>{children}</VStack>
-    </Card>
+      <VStack spacing={3}>{children}</VStack>
+    </VStack>
   )
 }
 
-/// Figma "Brief Item": a small numbered / time badge and a one-line title.
-function BriefItem({ badge, title, tint, onClick }: { badge: string; title: string; tint: string; onClick: () => void }) {
+function WidgetEmpty({ text }: { text: string }) {
+  return <span style={{ ...F.body(11, 'light'), color: T.grayText, padding: '5px 7px' }}>{text}</span>
+}
+
+function WidgetSummaryRow({ title, detail, onClick }: { title: string; detail?: string; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 5px', background: T.itemBackground, borderRadius: 4, width: '100%' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: T.itemBackground, borderRadius: 7, width: '100%' }}
     >
-      <span style={{ ...F.title(8), color: T.cardWhite, background: tint, padding: '3px 5px', borderRadius: 5 }}>{badge}</span>
-      <span className="truncate" style={{ ...F.body(12), color: T.ink }}>
-        {title}
-      </span>
+      <span className="truncate" style={{ ...F.body(11, 'medium'), color: T.ink, flex: 1 }}>{title}</span>
+      {detail && <span className="truncate" style={{ ...F.body(9), color: T.grayText, maxWidth: 72, flexShrink: 0 }}>{detail}</span>}
     </button>
   )
 }
@@ -385,6 +381,7 @@ function BriefItem({ badge, title, tint, onClick }: { badge: string; title: stri
 function TodoRow({ todo, model }: { todo: DashboardTodo; model: FloatingWidgetModel }) {
   return (
     <div
+      className="navi-interactive-row"
       onClick={() => model.setScreen({ kind: 'todoDetail', id: todo.id })}
       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px', background: T.itemBackground, borderRadius: 5, cursor: 'pointer' }}
     >
@@ -456,7 +453,6 @@ function MailListScreen({ model, openMain }: { model: FloatingWidgetModel; openM
           </button>
         ))}
       </Card>
-      <PromptInput prompt="여기서 제일 빨리 답장해야 하는 메일은 뭐야?" isOutlined />
     </Chrome>
   )
 }
@@ -588,7 +584,6 @@ function EventListScreen({ model, openMain }: { model: FloatingWidgetModel; open
         {/* The weekly prep flow lives in the main window's calendar tab. */}
         <WideButton title="이번 주 미리 준비하기" onClick={() => openMain('calendar')} />
       </VStack>
-      <PromptInput prompt="빈 시간에 할 일을 배치해 줘" />
     </Chrome>
   )
 }
@@ -683,7 +678,6 @@ function TodoListScreen({ model, openMain }: { model: FloatingWidgetModel; openM
       </Card>
       {/* The weekly prep flow lives in the main window's todo tab. */}
       <WideButton title="이번 주 미리 준비하기" onClick={() => openMain('todo')} />
-      <PromptInput prompt="오늘 할 일과 관련된 다른 할 일이 있을까?" />
     </Chrome>
   )
 }
@@ -764,7 +758,6 @@ function TodoDetailScreen({ model, todo, openMain }: { model: FloatingWidgetMode
           </VStack>
         </VStack>
       </Card>
-      <PromptInput prompt="오늘 할 일과 관련된 다른 할 일이 있을까?" />
     </Chrome>
   )
 }

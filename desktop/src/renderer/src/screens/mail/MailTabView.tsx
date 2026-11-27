@@ -18,6 +18,9 @@ import {
 } from '@/components/core'
 import { ErrorText, NaviCheckbox } from '@/components/shared'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { WidgetColumns, WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const MAIL_WIDGETS = [{ id: 'list', label: '메일 목록' }, { id: 'detail', label: '메일 내용' }] as const
 
 const DRAFTS: MailFilter = { kind: 'drafts' }
 
@@ -38,6 +41,7 @@ export function MailTabView({ model, onDialog }: {
   onDialog: (dialog: MainDialog) => void
 }) {
   useModel(model)
+  const widgets = useWidgetLayout('mail', MAIL_WIDGETS)
 
   useEffect(() => {
     void model.load()
@@ -65,7 +69,7 @@ export function MailTabView({ model, onDialog }: {
         if (!message) return null
         return (
           <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
-            <MailDetailPanel model={model} message={message} />
+            <MailDetailPanel key={message.id} model={model} message={message} />
             <NaviAssistantPrompt prompt="이 메일에서 할 일을 만들어 줘" context={{ type: 'mail_message', id: message.id }} />
           </VStack>
         )
@@ -108,7 +112,7 @@ export function MailTabView({ model, onDialog }: {
   })()
 
   return (
-    <VStack spacing={10} style={{ height: '100%' }}>
+    <VStack spacing={8} style={{ height: '100%' }}>
       <NaviTabHeader title="메일" searchPrompt="메일 검색" searchText={model.searchText} onSearchChange={(t) => model.set('searchText', t)} />
       <HStack spacing={10}>
         <NaviSegmentTabs
@@ -119,12 +123,13 @@ export function MailTabView({ model, onDialog }: {
           isEqual={sameMailFilter}
         />
         <Spacer />
+        <WidgetLayoutButton control={widgets} />
         <NaviSegmentTabs items={[DRAFTS]} selection={model.filter} onSelect={(f) => model.set('filter', f)} title={mailFilterTitle} isEqual={sameMailFilter} />
         <NaviPillButton title="새 메일" icon="IconPlus" style="primary" size="large" onClick={() => model.compose()} />
       </HStack>
 
-      <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
-        <VStack spacing={5} className="scroll" style={{ width: 360, flexShrink: 0, padding: '15px 10px', background: T.cardWhite, borderRadius: 10 }}>
+      <WidgetColumns id="mail" initialLeft={30} visible={panel.kind === 'empty' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ list:
+        <VStack spacing={5} className="scroll" style={{ flex: 1, minWidth: 0, padding: '15px 10px', background: T.cardWhite, borderRadius: 10 }}>
           {isDrafts ? (
             <>
               {model.drafts.length === 0 && <EmptyList text="임시 보관한 메일이 없어요." />}
@@ -142,16 +147,17 @@ export function MailTabView({ model, onDialog }: {
             </>
           ) : (
             <>
-              {model.visibleMessages.length === 0 && (model.isLoading ? <NaviLoadingStatus message="메일을 불러오는 중이에요…" compact /> : <EmptyList text="메일이 없어요." />)}
-              {model.visibleMessages.map((message) => (
+              {model.visibleConversations.length === 0 && (model.isLoading ? <NaviLoadingStatus message="메일을 불러오는 중이에요…" compact /> : <EmptyList text="메일이 없어요." />)}
+              {model.visibleConversations.map(({ latest: message, count }) => (
                 <MailListRow
                   key={message.id}
                   sender={message.sender.name || message.sender.email}
+                  count={count}
                   subject={message.subject}
                   snippet={mailSnippet(message)}
                   time={MailTabModel.listTime(message.receivedAt)}
                   isStarred={message.isStarred}
-                  isSelected={model.selectedMessageID === message.id}
+                  isSelected={model.threadMessages(message).some((item) => item.id === model.selectedMessageID)}
                   onStar={() => model.toggleStar(message.id)}
                   onClick={() => model.open(message.id)}
                 />
@@ -159,7 +165,7 @@ export function MailTabView({ model, onDialog }: {
             </>
           )}
         </VStack>
-        <VStack spacing={6} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+      , detail: <VStack spacing={6} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           {rightPanel}
           {/* Load / send / star failures from the `mail` Edge Function. */}
           {model.errorMessage && (
@@ -167,8 +173,7 @@ export function MailTabView({ model, onDialog }: {
               <ErrorText>{model.errorMessage}</ErrorText>
             </span>
           )}
-        </VStack>
-      </HStack>
+        </VStack> }} />
     </VStack>
   )
 }
@@ -179,11 +184,12 @@ function EmptyList({ text }: { text: string }) {
 
 /// Figma "Email Item / Detail": sender, star + time, bold subject (purple when selected),
 /// and a one-line snippet.
-function MailListRow({ sender, subject, snippet, time, isStarred, isSelected, onStar, onClick }: {
+function MailListRow({ sender, subject, snippet, time, count, isStarred, isSelected, onStar, onClick }: {
   sender: string
   subject: string
   snippet: string
   time: string
+  count?: number
   /** undefined hides the star (drafts). */
   isStarred?: boolean
   isSelected: boolean
@@ -209,6 +215,7 @@ function MailListRow({ sender, subject, snippet, time, isStarred, isSelected, on
         <span className="truncate" style={{ ...F.body(10), color: T.ink }}>
           {sender}
         </span>
+        {count && count > 1 && <span aria-label={`대화 ${count}개`} style={{ ...F.body(10, 'bold'), color: T.purple, flexShrink: 0 }}>{count}</span>}
         <Spacer />
         <HStack spacing={5}>
           {isStarred !== undefined && (
@@ -249,6 +256,10 @@ function ItemBox({ children, spacing = 10 }: { children: ReactNode; spacing?: nu
 
 function MailDetailPanel({ model, message }: { model: MailTabModel; message: MailMessage }) {
   const [isAddingTodo, setAddingTodo] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  const older = model.threadMessages(message).filter((item) => item.id !== message.id)
+  const hiddenCount = !showAll && older.length > 3 ? older.length - 1 : 0
+  const previews = hiddenCount ? older.slice(0, 1) : older
   const isAdded = model.addedTodoMessageIDs.has(message.id)
   const draft = message.replyDraft
   return (
@@ -258,8 +269,15 @@ function MailDetailPanel({ model, message }: { model: MailTabModel; message: Mai
           {message.subject}
         </span>
         <Divider />
+        {model.isLoadingThread(message) && <NaviLoadingStatus message="대화 내용을 불러오는 중…" compact />}
+        {older.length > 0 && <div className="scroll" style={{ maxHeight: showAll ? 260 : undefined, flexShrink: 0 }}>
+          {previews.map((item) => <MailThreadPreview key={item.id} message={item} onClick={() => model.open(item.id)} />)}
+          {hiddenCount > 0 && <button type="button" aria-label={`이전 메일 ${hiddenCount}개 펼치기`} onClick={() => setShowAll(true)} style={{ ...F.body(11, 'bold'), color: T.grayText, background: T.cardWhite, border: `1px solid ${T.border}`, width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', margin: '8px 0 8px 6px' }}>{hiddenCount}</button>}
+          {showAll && older.length > 3 && <button type="button" onClick={() => setShowAll(false)} style={{ ...F.body(10), color: T.purple, padding: '6px 0' }}>이전 메일 접기</button>}
+        </div>}
         <HStack>
           <HStack spacing={10} style={{ minWidth: 0 }}>
+            <span aria-hidden style={{ ...F.body(11, 'bold'), color: T.purple, background: T.lavender, borderRadius: '50%', width: 27, height: 27, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{(message.sender.name || message.sender.email).charAt(0).toUpperCase()}</span>
             <span style={{ ...F.body(12, 'bold'), color: T.ink }}>{message.sender.name}</span>
             <span className="truncate selectable" style={{ ...F.body(10), color: T.grayText }}>
               &lt;{message.sender.email}&gt;
@@ -340,6 +358,18 @@ function MailDetailPanel({ model, message }: { model: MailTabModel; message: Mai
       </VStack>
     </Pane>
   )
+}
+
+function MailThreadPreview({ message, onClick }: { message: MailMessage; onClick: () => void }) {
+  const sender = message.sender.name || message.sender.email
+  return <button type="button" onClick={onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '11px 5px', borderBottom: `1px solid ${T.borderLight}`, textAlign: 'left' }}>
+    <span aria-hidden style={{ ...F.body(12, 'bold'), color: T.purple, background: T.lavender, borderRadius: '50%', width: 32, height: 32, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{sender.charAt(0).toUpperCase()}</span>
+    <span style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+      <span className="truncate" style={{ ...F.body(11, 'bold'), color: T.ink }}>{sender}</span>
+      <span className="truncate" style={{ ...F.body(10), color: T.grayText }}>{mailSnippet(message)}</span>
+    </span>
+    <span style={{ ...F.body(9), color: T.graySecondary, flexShrink: 0 }}>{MailTabModel.listTime(message.receivedAt)}</span>
+  </button>
 }
 
 function MailBody({ text }: { text: string }) {
