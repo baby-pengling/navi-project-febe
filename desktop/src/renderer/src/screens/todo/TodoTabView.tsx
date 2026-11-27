@@ -7,7 +7,6 @@ import {
   HStack,
   NaviCategoryTag,
   NaviGroupSubtitle,
-  NaviIcon,
   NaviLoadingStatus,
   NaviPillButton,
   NaviPromptInput,
@@ -114,15 +113,9 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
             <HStack>
               <span style={{ ...F.heading(18), color: T.ink }}>기한별 할 일</span>
               <Spacer />
-              <button
-                type="button"
-                title={model.showsCompleted ? '완료한 할 일 숨기기' : '완료한 할 일 보기'}
-                onClick={() => model.set('showsCompleted', !model.showsCompleted)}
-                style={{ ...F.body(12), color: T.grayText, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 5px 5px 10px' }}
-              >
+              <span style={{ ...F.body(12), color: T.grayText, padding: '5px 0' }}>
                 미완료 {model.openCount} · 완료 {model.doneCount}
-                <NaviIcon name="IconChevron" style={{ transform: `rotate(${model.showsCompleted ? -90 : 0}deg)` }} />
-              </button>
+              </span>
             </HStack>
             <VStack spacing={20} className="scroll" style={{ flex: 1, minHeight: 0 }}>
               {model.errorMessage && <ErrorText>{model.errorMessage}</ErrorText>}

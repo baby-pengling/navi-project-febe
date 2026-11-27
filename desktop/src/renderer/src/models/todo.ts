@@ -65,7 +65,6 @@ export class TodoTabModel extends Observable {
   suggestions: PrepSuggestion[] = []
   filter: TodoFilter = 'all'
   searchText = ''
-  showsCompleted = true
   panel: TodoPanel = { kind: 'overview' }
   isLoading = false
   errorMessage: string | null = null
@@ -78,7 +77,7 @@ export class TodoTabModel extends Observable {
     super()
   }
 
-  set<K extends 'filter' | 'searchText' | 'showsCompleted' | 'panel' | 'errorMessage'>(key: K, value: this[K]): void {
+  set<K extends 'filter' | 'searchText' | 'panel' | 'errorMessage'>(key: K, value: this[K]): void {
     this[key] = value
     this.changed()
   }
@@ -125,9 +124,7 @@ export class TodoTabModel extends Observable {
   /// Visible groups for the current filter and search, in Figma order.
   get groupedTodos(): { group: TodoGroup; todos: DashboardTodo[] }[] {
     const query = this.searchText.trim().toLowerCase()
-    const visible = this.todos.filter(
-      (todo) => (this.showsCompleted || !todo.isDone) && (!query || todo.title.toLowerCase().includes(query))
-    )
+    const visible = this.todos.filter((todo) => !query || todo.title.toLowerCase().includes(query))
     const due = (todo: DashboardTodo) => todo.dueAt?.getTime() ?? Number.POSITIVE_INFINITY
     return filterGroups[this.filter]
       .map((group) => ({
