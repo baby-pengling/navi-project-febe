@@ -21,7 +21,9 @@ import {
 import { DayTimeline, ErrorText, NaviCheckbox, NewEventPanel, TodoItemRow, dashboardMeta } from '@/components/shared'
 import { PrepAddedPanel, PrepDetailPanel, SuggestionCard } from '@/components/todoPanels'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
-import { ResizableColumns } from '@/components/ResizableColumns'
+import { WidgetColumns, WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const CALENDAR_WIDGETS = [{ id: 'calendar', label: '캘린더' }, { id: 'detail', label: '일정 상세' }] as const
 
 const MODES: CalendarMode[] = ['week', 'month']
 
@@ -42,6 +44,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
   onStartPrep: () => void
 }) {
   useModel(model)
+  const widgets = useWidgetLayout('calendar', CALENDAR_WIDGETS)
   // Re-render when the linked todos change.
   useModel(model.todoModel)
 
@@ -137,6 +140,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
       <HStack spacing={15}>
         <span style={{ ...F.title(22), color: T.dark }}>{model.monthTitle}</span>
         <Spacer />
+        <WidgetLayoutButton control={widgets} />
         <NaviSegmentTabs items={MODES} selection={model.mode} onSelect={(m) => model.set('mode', m)} title={(m) => (m === 'week' ? '주' : '월')} />
         <HStack spacing={5}>
           {navButton(90, '이전', () => model.step(-1))}
@@ -181,7 +185,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
               )
             })}
           </HStack>
-          <ResizableColumns id="calendar-week" initialLeft={68} style={{ paddingBottom: 6 }} left={
+          <WidgetColumns id="calendar-week" initialLeft={68} visible={panel.kind === 'overview' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ calendar:
             <Pane spacing={15}>
               <span style={{ ...F.heading(18), color: T.ink }}>{model.dayTitle}</span>
               <DayTimeline
@@ -191,14 +195,14 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
                 onSelect={(e) => model.set('panel', { kind: 'eventDetail', id: e.id })}
               />
             </Pane>
-          } right={rightColumn()} />
+          , detail: rightColumn() }} />
         </VStack>
       ) : (
-        <ResizableColumns id="calendar-month" initialLeft={78} style={{ paddingBottom: 6 }} left={
+        <WidgetColumns id="calendar-month" initialLeft={78} visible={panel.kind === 'overview' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ calendar:
           <div style={{ flex: 1, minWidth: 0, background: T.cardWhite, borderRadius: 10, overflow: 'hidden' }}>
             <MonthCalendarGrid model={model} />
           </div>
-        } right={rightColumn()} />
+        , detail: rightColumn() }} />
       )}
     </VStack>
   )

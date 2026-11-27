@@ -67,6 +67,14 @@ button:disabled {
   cursor: default;
 }
 
+.navi-column-handle:hover,
+.navi-column-handle:focus-visible { color: var(--navi-primary, #7165ff) !important; }
+.navi-column-handle:focus-visible { outline: 2px solid var(--navi-primary, #7165ff); outline-offset: -1px; border-radius: 4px; }
+.widget-layout-trigger:hover { background: var(--navi-selected, #f6f5ff) !important; }
+.widget-layout-popover { animation: fade-in 0.18s ease-out; }
+.widget-layout-popover input[type='checkbox'] { width: 14px; height: 14px; flex-shrink: 0; accent-color: var(--navi-primary, #7165ff); cursor: pointer; }
+.widget-layout-popover input[type='checkbox']:disabled { cursor: default; }
+
 .navi-link-button {
   padding: 7px 12px;
   border-radius: 8px;

@@ -23,6 +23,13 @@ import {
 } from '@/components/core'
 import { DragHandle, NaviCheckbox, NewEventPanel, ScheduleBlock, clockTime, timeRange } from '@/components/shared'
 import { DeadlinePanel, deadlineText } from '@/components/todoPanels'
+import { WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const FLOATING_WIDGETS = [
+  { id: 'mail', label: '최근 메일' },
+  { id: 'events', label: '오늘 일정' },
+  { id: 'todo', label: '할 일' }
+] as const
 
 // Port of FloatingWidgetView.swift and FloatingScreens.swift (Figma "03-1 Floating UI"). The
 // widget runs in its own transparent, always-on-top window; this view reports its size so the
@@ -289,10 +296,28 @@ function Card({ children, spacing = 10, padding = '10px 10px' }: { children: Rea
 
 /// Compact glance view; full lists and detail screens remain one tap away.
 function HomeScreen({ model, openMain }: { model: FloatingWidgetModel; openMain: OpenMain }) {
+  const widgets = useWidgetLayout('floating', FLOATING_WIDGETS)
   const now = new Date()
   const hour = now.getHours()
   const salutation = hour >= 5 && hour < 12 ? '좋은 아침이에요' : hour >= 12 && hour < 18 ? '좋은 오후예요' : '좋은 저녁이에요'
   const greeting = model.userName ? `${salutation}, ${model.userName}님.` : `${salutation}.`
+  const sections = {
+    mail: <WidgetSummarySection title="최근 메일" count={model.mails.length} icon="SidebarMail" onViewAll={() => model.setScreen({ kind: 'mails' })}>
+      {model.mails.length === 0 ? <WidgetEmpty text="새 메일이 없어요" /> : model.mails.slice(0, 2).map((mail) => (
+        <WidgetSummaryRow key={mail.id} title={mail.briefTitle} detail={mail.message.sender.name} onClick={() => model.setScreen({ kind: 'mailDetail', id: mail.id })} />
+      ))}
+    </WidgetSummarySection>,
+    events: <WidgetSummarySection title="오늘 일정" count={model.events.length} icon="SidebarCalendar" onViewAll={() => model.setScreen({ kind: 'events' })}>
+      {model.events.length === 0 ? <WidgetEmpty text="예정된 일정이 없어요" /> : model.sortedEvents.slice(0, 2).map((event) => (
+        <WidgetSummaryRow key={event.id} title={event.title} detail={clockTime(event.startAt)} onClick={() => model.setScreen({ kind: 'eventDetail', id: event.id })} />
+      ))}
+    </WidgetSummarySection>,
+    todo: <WidgetSummarySection title="할 일" count={model.openTodos.length} icon="SidebarTodo" onViewAll={() => model.setScreen({ kind: 'todos' })}>
+      {model.openTodos.length === 0 ? <WidgetEmpty text="오늘 할 일이 없어요" /> : model.openTodos.slice(0, 2).map((todo) => (
+        <WidgetSummaryRow key={todo.id} title={todo.title} detail={todo.dueAt ? FloatingWidgetModel.time(todo.dueAt) : undefined} onClick={() => model.setScreen({ kind: 'todoDetail', id: todo.id })} />
+      ))}
+    </WidgetSummarySection>
+  }
   return (
     <Chrome
       title="오늘의 브리핑"
@@ -300,23 +325,10 @@ function HomeScreen({ model, openMain }: { model: FloatingWidgetModel; openMain:
       caption={greeting}
       openMain={openMain}
     >
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><WidgetLayoutButton control={widgets} inline /></div>
       {model.loadError && <span style={{ ...F.body(11), color: T.red }}>{model.loadError}</span>}
       {model.isLoading ? <Card><NaviLoadingStatus message="오늘의 정보를 불러오는 중…" compact /></Card> : <Card spacing={0} padding="4px 12px">
-        <WidgetSummarySection title="최근 메일" count={model.mails.length} icon="SidebarMail" onViewAll={() => model.setScreen({ kind: 'mails' })}>
-          {model.mails.length === 0 ? <WidgetEmpty text="새 메일이 없어요" /> : model.mails.slice(0, 2).map((mail) => (
-            <WidgetSummaryRow key={mail.id} title={mail.briefTitle} detail={mail.message.sender.name} onClick={() => model.setScreen({ kind: 'mailDetail', id: mail.id })} />
-          ))}
-        </WidgetSummarySection>
-        <WidgetSummarySection title="오늘 일정" count={model.events.length} icon="SidebarCalendar" onViewAll={() => model.setScreen({ kind: 'events' })}>
-          {model.events.length === 0 ? <WidgetEmpty text="예정된 일정이 없어요" /> : model.sortedEvents.slice(0, 2).map((event) => (
-            <WidgetSummaryRow key={event.id} title={event.title} detail={clockTime(event.startAt)} onClick={() => model.setScreen({ kind: 'eventDetail', id: event.id })} />
-          ))}
-        </WidgetSummarySection>
-        <WidgetSummarySection title="할 일" count={model.openTodos.length} icon="SidebarTodo" onViewAll={() => model.setScreen({ kind: 'todos' })}>
-          {model.openTodos.length === 0 ? <WidgetEmpty text="오늘 할 일이 없어요" /> : model.openTodos.slice(0, 2).map((todo) => (
-            <WidgetSummaryRow key={todo.id} title={todo.title} detail={todo.dueAt ? FloatingWidgetModel.time(todo.dueAt) : undefined} onClick={() => model.setScreen({ kind: 'todoDetail', id: todo.id })} />
-          ))}
-        </WidgetSummarySection>
+        {widgets.visible.map((id) => <div key={id}>{sections[id]}</div>)}
       </Card>}
     </Chrome>
   )

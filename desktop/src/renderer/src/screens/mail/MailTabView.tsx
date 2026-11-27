@@ -18,7 +18,9 @@ import {
 } from '@/components/core'
 import { ErrorText, NaviCheckbox } from '@/components/shared'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
-import { ResizableColumns } from '@/components/ResizableColumns'
+import { WidgetColumns, WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const MAIL_WIDGETS = [{ id: 'list', label: '메일 목록' }, { id: 'detail', label: '메일 내용' }] as const
 
 const DRAFTS: MailFilter = { kind: 'drafts' }
 
@@ -39,6 +41,7 @@ export function MailTabView({ model, onDialog }: {
   onDialog: (dialog: MainDialog) => void
 }) {
   useModel(model)
+  const widgets = useWidgetLayout('mail', MAIL_WIDGETS)
 
   useEffect(() => {
     void model.load()
@@ -120,11 +123,12 @@ export function MailTabView({ model, onDialog }: {
           isEqual={sameMailFilter}
         />
         <Spacer />
+        <WidgetLayoutButton control={widgets} />
         <NaviSegmentTabs items={[DRAFTS]} selection={model.filter} onSelect={(f) => model.set('filter', f)} title={mailFilterTitle} isEqual={sameMailFilter} />
         <NaviPillButton title="새 메일" icon="IconPlus" style="primary" size="large" onClick={() => model.compose()} />
       </HStack>
 
-      <ResizableColumns id="mail" initialLeft={30} style={{ paddingBottom: 6 }} left={
+      <WidgetColumns id="mail" initialLeft={30} visible={panel.kind === 'empty' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ list:
         <VStack spacing={5} className="scroll" style={{ flex: 1, minWidth: 0, padding: '15px 10px', background: T.cardWhite, borderRadius: 10 }}>
           {isDrafts ? (
             <>
@@ -160,7 +164,7 @@ export function MailTabView({ model, onDialog }: {
             </>
           )}
         </VStack>
-      } right={<VStack spacing={6} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+      , detail: <VStack spacing={6} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           {rightPanel}
           {/* Load / send / star failures from the `mail` Edge Function. */}
           {model.errorMessage && (
@@ -168,7 +172,7 @@ export function MailTabView({ model, onDialog }: {
               <ErrorText>{model.errorMessage}</ErrorText>
             </span>
           )}
-        </VStack>} />
+        </VStack> }} />
     </VStack>
   )
 }

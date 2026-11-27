@@ -19,13 +19,16 @@ import {
 import { ErrorText, NaviCheckbox, NewTodoPanel, TodoAddedPanel, TodoItemRow } from '@/components/shared'
 import { Card, DeadlinePanel, PrepAddedPanel, PrepDetailPanel, TodoDetailPanel, WeeklyPrepPanel } from '@/components/todoPanels'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
-import { ResizableColumns } from '@/components/ResizableColumns'
+import { WidgetColumns, WidgetLayoutButton, useWidgetLayout } from '@/components/WidgetLayout'
+
+const TODO_WIDGETS = [{ id: 'list', label: '기한별 할 일' }, { id: 'detail', label: '상세 · 흐름' }] as const
 
 /// Figma "10 - 할 일": filter tabs, the deadline-grouped list with a quick-add bar on the
 /// left, and a right column that swaps between the overview (오늘의 흐름 + 카테고리), todo
 /// detail, deadline picker, new todo, and weekly-prep panels.
 export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onAddCategory: () => void }) {
   useModel(model)
+  const widgets = useWidgetLayout('todo', TODO_WIDGETS)
 
   useEffect(() => {
     void model.load()
@@ -103,11 +106,12 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
       <HStack spacing={15}>
         <NaviSegmentTabs items={TODO_FILTERS} selection={model.filter} onSelect={(f) => model.set('filter', f)} title={(f) => filterTitle[f]} />
         <Spacer />
+        <WidgetLayoutButton control={widgets} />
         <NaviPillButton title="이번 주 미리 준비" size="large" onClick={() => model.openPrep()} />
         <NaviPillButton title="새 할 일" icon="IconPlus" style="primary" size="large" onClick={() => model.set('panel', { kind: 'newTodo' })} />
       </HStack>
 
-      <ResizableColumns id="todo" initialLeft={74} style={{ paddingBottom: 6 }} left={
+      <WidgetColumns id="todo" initialLeft={74} visible={panel.kind === 'overview' || widgets.visible.includes('detail') ? widgets.visible : [...widgets.visible, 'detail']} style={{ paddingBottom: 6 }} panels={{ list:
         <VStack spacing={8} style={{ flex: 1, minWidth: 0 }}>
           <VStack spacing={20} style={{ flex: 1, minHeight: 0, padding: '15px 20px', background: T.cardWhite, borderRadius: 10 }}>
             <HStack>
@@ -157,12 +161,12 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
           </VStack>
           <NaviPromptInput prompt="- [ ] 할 일을 입력하세요  /기한  #카테고리" action="enter" onSubmit={(text) => model.quickAdd(text)} />
         </VStack>
-      } right={<VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+      , detail: <VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
             {rightPanel}
           </VStack>
           <NaviAssistantPrompt prompt="내가 놓친 할 일이 있어?" />
-        </VStack>} />
+        </VStack> }} />
     </VStack>
   )
 }
