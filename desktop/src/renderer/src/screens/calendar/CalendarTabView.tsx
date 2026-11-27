@@ -388,12 +388,13 @@ function AddSelectedButton({ isEnabled, onAdd }: { isEnabled: boolean; onAdd: ()
   return (
     <HStack>
       <NaviDialogButton
-        title={isAdding ? '추가 중…' : '선택한 할 일 추가'}
+        title="선택한 할 일 추가"
         isEnabled={isEnabled && !isAdding}
+        isLoading={isAdding}
+        loadingMessage="선택한 할 일을 추가하는 중…"
         onClick={async () => {
           setAdding(true)
-          await onAdd()
-          setAdding(false)
+          try { await onAdd() } finally { setAdding(false) }
         }}
       />
     </HStack>

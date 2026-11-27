@@ -301,12 +301,13 @@ export function WeeklyPrepPanel({ model }: { model: TodoTabModel }) {
       </VStack>
       <HStack>
         <NaviDialogButton
-          title={isAdding ? '추가 중…' : '선택한 할 일 추가'}
+          title="선택한 할 일 추가"
           isEnabled={model.suggestions.some((s) => s.isSelected) && !isAdding}
+          isLoading={isAdding}
+          loadingMessage="선택한 할 일을 추가하는 중…"
           onClick={async () => {
             setAdding(true)
-            await model.addSelectedSuggestions()
-            setAdding(false)
+            try { await model.addSelectedSuggestions() } finally { setAdding(false) }
           }}
         />
       </HStack>

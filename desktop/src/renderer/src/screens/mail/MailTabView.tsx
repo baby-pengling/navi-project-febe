@@ -273,7 +273,7 @@ function MailDetailPanel({ model, message }: { model: MailTabModel; message: Mai
         {message.bodyHtml ? <iframe title={`${message.subject} 원본 메일`} sandbox="allow-popups" referrerPolicy="no-referrer" srcDoc={`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; img-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:">${message.bodyHtml}`} style={{ width: '100%', height: '100%', minHeight: 360, border: 0, background: T.cardWhite }} /> : <MailBody text={message.body} />}
       </div>
       {model.loadingSummaryIDs.has(message.id) && message.summary.length === 0 && (
-        <span style={{ ...F.body(11), color: T.grayText }}>AI 요약을 불러오는 중이에요…</span>
+        <NaviLoadingStatus message="AI 요약을 불러오는 중…" compact />
       )}
       <VStack spacing={10}>
         {message.summary.length > 0 && (
