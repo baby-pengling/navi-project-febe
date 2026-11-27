@@ -34,10 +34,10 @@ export function useWidgetLayout<ID extends string>(key: string, items: readonly 
         return { ...current, visible: current.visible.includes(id) ? current.visible.filter((value) => value !== id) : [...current.visible, id] }
       })
     },
-    move(id: ID, target: ID) {
+    move(id: ID, target: ID, position: 'before' | 'after' = 'before') {
       setLayout((current) => {
         const order = current.order.filter((value) => value !== id)
-        order.splice(order.indexOf(target), 0, id)
+        order.splice(order.indexOf(target) + (position === 'after' ? 1 : 0), 0, id)
         return { ...current, order }
       })
     },
@@ -59,6 +59,7 @@ export function useWidgetLayout<ID extends string>(key: string, items: readonly 
 export function WidgetLayoutButton<ID extends string>({ control, inline = false }: { control: ReturnType<typeof useWidgetLayout<ID>>; inline?: boolean }) {
   const [open, setOpen] = useState(false)
   const [dragged, setDragged] = useState<ID | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ id: ID; position: 'before' | 'after' } | null>(null)
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
@@ -77,7 +78,19 @@ export function WidgetLayoutButton<ID extends string>({ control, inline = false 
       {control.layout.order.map((id, index) => {
         const item = control.items.find((candidate) => candidate.id === id)
         if (!item) return null
-        return <div key={id} draggable onDragStart={() => setDragged(id)} onDragEnd={() => setDragged(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (dragged && dragged !== id) control.move(dragged, id); setDragged(null) }} style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 34, borderRadius: 6, padding: '3px 4px', background: dragged === id ? T.lavender : T.itemBackground, marginBottom: 5 }}>
+        return <div key={id} draggable
+          onDragStart={(event) => { event.dataTransfer.setData('text/plain', id); event.dataTransfer.effectAllowed = 'move'; setDragged(id) }}
+          onDragEnd={() => { setDragged(null); setDropTarget(null) }}
+          onDragOver={(event) => {
+            if (!dragged || dragged === id) return
+            event.preventDefault()
+            const rect = event.currentTarget.getBoundingClientRect()
+            const position = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+            if (dropTarget?.id !== id || dropTarget.position !== position) setDropTarget({ id, position })
+          }}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropTarget(null) }}
+          onDrop={(event) => { event.preventDefault(); if (dragged && dragged !== id) control.move(dragged, id, dropTarget?.position ?? 'before'); setDragged(null); setDropTarget(null) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 34, borderRadius: 6, padding: '3px 4px', background: dragged === id || dropTarget?.id === id ? T.lavender : T.itemBackground, marginBottom: 5, position: 'relative', boxShadow: dropTarget?.id === id ? `inset 0 ${dropTarget.position === 'before' ? '3px' : '-3px'} ${T.purple}` : undefined }}>
           <span aria-hidden style={{ color: T.graySecondary, cursor: 'grab' }}>⋮⋮</span>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, cursor: 'pointer' }}><input type="checkbox" checked={control.layout.visible.includes(id)} disabled={control.layout.visible.length === 1 && control.layout.visible.includes(id)} onChange={() => control.toggle(id)} />{item.label}</label>
           <button type="button" aria-label={`${item.label} 위로`} disabled={index === 0} onClick={() => control.moveBy(id, -1)} style={{ color: T.grayText, padding: 2 }}>↑</button>
