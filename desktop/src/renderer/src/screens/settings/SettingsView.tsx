@@ -5,6 +5,7 @@ import { SNOOZE_PRESETS, type NotificationPreferences } from '@/data/types'
 import type { SettingsModel } from '@/models/settings'
 import { HStack, NaviCheckCircle, NaviImage, NaviPanel, NaviPillButton, NaviSectionHeader, NaviTextField, Spacer, VStack } from '@/components/core'
 import type { MainDialog } from '../MainWindow'
+import { AppearancePicker } from '@/components/AppearancePicker'
 
 /// Figma "12 - 설정": profile + notifications on the left, connected services on the right.
 export function SettingsView({ model, onDialog, onSignOut }: {
@@ -98,22 +99,30 @@ export function SettingsView({ model, onDialog, onSignOut }: {
           </VStack>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <NaviPanel spacing={12} horizontalPadding={16} verticalPadding={16}>
-              <NaviSectionHeader title="연결된 서비스" tag="2개" />
-              <span style={{ ...F.body(10), color: T.grayText }}>{googleCaption}</span>
-              {serviceRow('Gmail', 'GmailLogo', services.mailConnected)}
-              {serviceRow('Google Calendar', 'GoogleCalendarLogo', services.calendarConnected)}
-              {model.isConnectingGoogle && (
-                <HStack style={{ ...F.body(11), color: T.grayText }}>
-                  브라우저에서 Google 계정을 선택하고 승인해 주세요.
-                  <Spacer />
-                  <button type="button" onClick={() => model.cancelGoogleConnect()} style={{ ...F.body(11, 'semibold'), color: T.purple }}>
-                    취소
-                  </button>
-                </HStack>
-              )}
-              {model.connectError && <span style={{ ...F.body(11), color: T.red }}>{model.connectError}</span>}
-            </NaviPanel>
+            <VStack spacing={12}>
+              <NaviPanel spacing={12} horizontalPadding={16} verticalPadding={16}>
+                <NaviSectionHeader title="연결된 서비스" tag="2개" />
+                <span style={{ ...F.body(10), color: T.grayText }}>{googleCaption}</span>
+                {serviceRow('Gmail', 'GmailLogo', services.mailConnected)}
+                {serviceRow('Google Calendar', 'GoogleCalendarLogo', services.calendarConnected)}
+                {model.isConnectingGoogle && (
+                  <HStack style={{ ...F.body(11), color: T.grayText }}>
+                    브라우저에서 Google 계정을 선택하고 승인해 주세요.
+                    <Spacer />
+                    <button type="button" onClick={() => model.cancelGoogleConnect()} style={{ ...F.body(11, 'semibold'), color: T.purple }}>
+                      취소
+                    </button>
+                  </HStack>
+                )}
+                {model.connectError && <span style={{ ...F.body(11), color: T.red }}>{model.connectError}</span>}
+              </NaviPanel>
+              <NaviPanel spacing={12} horizontalPadding={16} verticalPadding={16}>
+                <NaviSectionHeader title="나의 navi 꾸미기" />
+                <AppearancePicker value={model.appearance} onChange={(appearance) => model.setAppearance(appearance)} />
+                {model.appearanceError && <span style={{ ...F.body(11), color: T.red }}>{model.appearanceError}</span>}
+                <NaviPillButton title={model.isSavingAppearance ? '저장 중…' : '변경 저장'} isLoading={model.isSavingAppearance} style="primary" onClick={() => void model.saveAppearance()} />
+              </NaviPanel>
+            </VStack>
           </div>
         </HStack>
       </div>

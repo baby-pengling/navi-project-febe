@@ -2,11 +2,13 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { F, T } from '@/lib/theme'
 import { useModel } from '@/lib/observable'
 import { errorText, type SessionStore } from '@/data/session'
-import { HStack, NaviButton, NaviImage, NaviLinkButton, NaviMascot, NaviTextField, Spacer, Spinner, VStack } from '@/components/core'
+import { HStack, NaviButton, NaviImage, NaviLinkButton, NaviLogoMark, NaviMascot, NaviTextField, Spacer, Spinner, VStack } from '@/components/core'
+import { AppearancePicker } from '@/components/AppearancePicker'
+import { readAppearance, type AgentAppearance } from '@/lib/appearance'
 
 // Port of the onboarding half of ContentView.swift.
 
-export type OnboardingStep = 'programLanding' | 'welcome' | 'login' | 'signUp' | 'interests' | 'services'
+export type OnboardingStep = 'programLanding' | 'welcome' | 'login' | 'signUp' | 'appearance' | 'interests' | 'services'
 
 export function OnboardingRouter({ store, step, setStep, isCompleted, setCompleted }: {
   store: SessionStore
@@ -30,9 +32,10 @@ export function OnboardingRouter({ store, step, setStep, isCompleted, setComplet
     setInterests(state.interests)
     setGmailConnected(state.gmailConnected)
     setCalendarConnected(state.calendarConnected)
-    if (!isCompleted && (step === 'programLanding' || step === 'welcome')) setStep('interests')
+    if ((step === 'programLanding' || step === 'welcome') && !state.hasAppearance) setStep('appearance')
+    else if (!isCompleted && (step === 'programLanding' || step === 'welcome')) setStep('interests')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, state.interests.join('\n'), state.gmailConnected, state.calendarConnected])
+  }, [isAuthenticated, state.hasAppearance, state.interests.join('\n'), state.gmailConnected, state.calendarConnected])
 
   const content = (() => {
     switch (step) {
@@ -48,7 +51,8 @@ export function OnboardingRouter({ store, step, setStep, isCompleted, setComplet
             onBack={() => setStep('welcome')}
             onSuccess={() => {
               setLoginNotice(null)
-              if (store.onboardingState.isCompleted) setCompleted(true)
+              if (!store.onboardingState.hasAppearance) setStep('appearance')
+              else if (store.onboardingState.isCompleted) setCompleted(true)
               else setStep('interests')
             }}
           />
@@ -58,9 +62,11 @@ export function OnboardingRouter({ store, step, setStep, isCompleted, setComplet
           <SignUp
             store={store}
             onBackToLogin={() => setStep('login')}
-            onSuccess={() => setStep('interests')}
+            onSuccess={() => setStep('appearance')}
           />
         )
+      case 'appearance':
+        return <AppearanceSelection store={store} onNext={() => store.onboardingState.isCompleted ? setCompleted(true) : setStep('interests')} />
       case 'interests':
         return (
           <InterestSelection
@@ -109,6 +115,33 @@ export function OnboardingRouter({ store, step, setStep, isCompleted, setComplet
 
 // MARK: - Screens
 
+function AppearanceSelection({ store, onNext }: { store: SessionStore; onNext: () => void }) {
+  const [appearance, setAppearance] = useState<AgentAppearance>(() => readAppearance(store.session?.user.user_metadata))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const continueToInterests = async () => {
+    if (saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      await store.saveAppearance(appearance)
+      onNext()
+    } catch (cause) {
+      setError(errorText(cause))
+    } finally {
+      setSaving(false)
+    }
+  }
+  return <NaviCard>
+    <VStack spacing={22}>
+      <VStack spacing={8} align="center"><span style={{ ...F.title(25), color: T.ink }}>나만의 navi 만들기</span><Subtitle>원하는 모양과 색을 골라 주세요. 설정에서 언제든 바꿀 수 있어요.</Subtitle></VStack>
+      <AppearancePicker value={appearance} onChange={setAppearance} />
+      <NaviButton title="계속하기" isLoading={saving} onClick={() => void continueToInterests()} />
+      {error && <InlineError message={error} />}
+    </VStack>
+  </NaviCard>
+}
+
 function ProgramLanding({ onFinished }: { onFinished: () => void }) {
   useEffect(() => {
     const timer = setTimeout(onFinished, 700)
@@ -118,7 +151,7 @@ function ProgramLanding({ onFinished }: { onFinished: () => void }) {
   return (
     <NaviCard>
       <HStack spacing={16} style={{ justifyContent: 'center' }}>
-        <NaviImage name="LogoMark" width={56} />
+        <NaviLogoMark width={56} />
         <NaviImage name="LogoWordmark" height={44} />
       </HStack>
     </NaviCard>

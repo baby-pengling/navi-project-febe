@@ -6,7 +6,7 @@ import type { DashboardMail, DashboardTodo } from '@/data/types'
 import type { DashboardModel } from '@/models/dashboard'
 import type { SettingsModel } from '@/models/settings'
 import type { MainTab } from '../MainWindow'
-import { HStack, NaviCompressButton, NaviImage, NaviPanel, NaviPillButton, NaviSectionHeader, Spacer, VStack } from '@/components/core'
+import { HStack, NaviCompressButton, NaviImage, NaviMascot, NaviPanel, NaviPillButton, NaviSectionHeader, Spacer, VStack } from '@/components/core'
 import { DayTimeline, NewEventPanel, NewTodoPanel, TodoAddedPanel, TodoItemRow, dashboardMeta, clockTime, useNow, ErrorText } from '@/components/shared'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
 
@@ -172,6 +172,7 @@ function Header({ now, name }: { now: Date; name: string }) {
         <DateChip text={format(now, 'MM')} />
         <DateChip text={format(now, 'dd')} />
       </HStack>
+      <NaviMascot width={48} />
       <NaviCompressButton compact />
     </HStack>
   )

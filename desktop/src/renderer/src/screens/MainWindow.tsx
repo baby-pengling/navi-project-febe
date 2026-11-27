@@ -11,7 +11,7 @@ import { MailTabModel } from '@/models/mail'
 import { ChatTabModel } from '@/models/chat'
 import { AssistantPromptModel } from '@/models/prompt'
 import { PromptContext } from '@/components/AssistantPrompt'
-import { NaviDialogButton, NaviDialogCard, NaviIcon, NaviImage, Spacer } from '@/components/core'
+import { NaviDialogButton, NaviDialogCard, NaviIcon, NaviImage, NaviLogoMark, Spacer } from '@/components/core'
 import { DashboardView } from './dashboard/DashboardView'
 import { SettingsView } from './settings/SettingsView'
 import { ServiceConnectFlow, type ConnectStep } from './ServiceConnectFlow'
@@ -325,7 +325,7 @@ function Sidebar({ selection, onSelect, isCollapsed, onToggle }: {
       }}
     >
       <div aria-label="navi" style={{ display: 'flex', alignItems: 'center', gap: 9.7, justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
-        <NaviImage name="LogoMark" width={30} height={30} />
+        <NaviLogoMark width={30} />
         {!isCollapsed && <NaviImage name="LogoWordmark" width={58} height={18.4} />}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>

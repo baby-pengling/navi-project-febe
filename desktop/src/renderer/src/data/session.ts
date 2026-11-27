@@ -1,5 +1,6 @@
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Observable } from '@/lib/observable'
+import { hasSavedAppearance, type AgentAppearance } from '@/lib/appearance'
 import { configurationError, REDIRECT_URL, supabase } from '@/lib/supabase'
 import { unwrap, TodoStore } from './backend'
 import { makeEdgeServices, type EdgeServices } from './edge'
@@ -12,6 +13,7 @@ const OAUTH_TIMEOUT_MS = 5 * 60_000
 
 export interface OnboardingState {
   interests: string[]
+  hasAppearance: boolean
   gmailConnected: boolean
   calendarConnected: boolean
   isCompleted: boolean
@@ -88,6 +90,7 @@ export class SessionStore extends Observable {
     const metadata = this.session?.user.user_metadata ?? {}
     return {
       interests: Array.isArray(metadata.navi_interests) ? metadata.navi_interests.filter((v: unknown) => typeof v === 'string') : [],
+      hasAppearance: hasSavedAppearance(metadata),
       gmailConnected: metadata.navi_gmail_connected === true,
       calendarConnected: metadata.navi_calendar_connected === true,
       isCompleted: metadata.navi_onboarding_completed === true || metadata.navi_onboarding_step === 'complete'
@@ -157,7 +160,7 @@ export class SessionStore extends Observable {
         options: {
           // Keep the original display name key for compatibility with existing Supabase users,
           // while also storing Navi's profile fields in auth.users.raw_user_meta_data.
-          data: { name, navi_name: name, navi_role: role, navi_onboarding_step: 'interests' },
+          data: { name, navi_name: name, navi_role: role, navi_onboarding_step: 'appearance' },
           emailRedirectTo: REDIRECT_URL
         }
       })
@@ -203,6 +206,10 @@ export class SessionStore extends Observable {
   async saveInterests(interests: string[]): Promise<void> {
     await this.updateUserMetadata({ navi_interests: interests, navi_onboarding_step: 'services' })
     await this.saveOnboardingMemory(interests)
+  }
+
+  async saveAppearance(appearance: AgentAppearance): Promise<void> {
+    await this.updateUserMetadata({ navi_agent_shape: appearance.shape, navi_agent_color: appearance.color })
   }
 
   /// Gmail and Calendar are granted in one Google consent. The first time links the Google

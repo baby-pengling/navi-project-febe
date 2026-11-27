@@ -3,6 +3,7 @@ import { AccountService, NotificationSettingsStore } from '@/data/backend'
 import { isServerError, isUnavailable, type GoogleAuthService } from '@/data/edge'
 import { AppSessionError, errorText, type SessionStore } from '@/data/session'
 import { defaultNotificationPreferences, type ConnectedServices, type NotificationPreferences } from '@/data/types'
+import { applyAppearance, readAppearance, type AgentAppearance } from '@/lib/appearance'
 
 export type PasswordChangeError = 'currentPasswordRequired' | 'weakPassword' | 'confirmationMismatch'
 
@@ -23,6 +24,9 @@ const googleEmail = (store: SessionStore): string | undefined => {
 /// and notification preferences on the `notification_settings` TABLE.
 export class SettingsModel extends Observable {
   name: string
+  appearance: AgentAppearance
+  isSavingAppearance = false
+  appearanceError: string | null = null
   readonly loginEmail: string
   notifications: NotificationPreferences = defaultNotificationPreferences()
   services: ConnectedServices
@@ -45,6 +49,7 @@ export class SettingsModel extends Observable {
     const metadata = user?.user_metadata ?? {}
     const initialName = (metadata.navi_name ?? metadata.name ?? '') as string
     this.name = initialName
+    this.appearance = readAppearance(metadata)
     this.savedName = initialName
     this.loginEmail = user?.email ?? ''
     const state = sessionStore.onboardingState
@@ -62,6 +67,26 @@ export class SettingsModel extends Observable {
   setName(name: string): void {
     this.name = name
     this.changed()
+  }
+
+  setAppearance(appearance: AgentAppearance): void {
+    this.appearance = appearance
+    this.changed()
+  }
+
+  async saveAppearance(): Promise<void> {
+    this.isSavingAppearance = true
+    this.appearanceError = null
+    this.changed()
+    try {
+      await this.sessionStore.saveAppearance(this.appearance)
+      applyAppearance(this.appearance)
+    } catch {
+      this.appearanceError = '캐릭터 설정을 저장하지 못했어요.'
+    } finally {
+      this.isSavingAppearance = false
+      this.changed()
+    }
   }
 
   /// Reads the saved notification preferences.

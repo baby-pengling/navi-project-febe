@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 
 /// Color tokens from the Figma file's variables (`NaviTheme` in Swift).
 export const T = {
-  purple: '#7165FF', // Purple/Main
+  purple: 'var(--navi-primary, #7165FF)', // User-selected primary
   ink: '#19191C', // Black/Main
   dark: '#2E434E', // Dark
   grayMain: '#6B7B86', // Gray/Main
@@ -12,14 +12,14 @@ export const T = {
   /** Floating widget surface behind its white cards. */
   widgetBackground: '#F6F6F6', // White/Bg
   /** Selected day column in the month grid. */
-  selectedCell: '#F6F5FF',
+  selectedCell: 'var(--navi-selected, #F6F5FF)',
   grayText: '#75737A', // Gray/Text
   graySecondary: '#94A0AA', // Gray/Secondary
   border: '#DBD9E0', // Gray/Border
   borderLight: '#E6EAEE', // Gray/Border-light
-  lavender: '#ECEAFF', // Background
-  lime: '#D5FF63', // Lime/Main
-  limeLight: '#ECFFBA', // Lime/Light
+  lavender: 'var(--navi-soft, #ECEAFF)', // Background
+  lime: 'var(--navi-dot, #D5FF63)', // Accent
+  limeLight: 'var(--navi-dot-soft, #ECFFBA)', // Accent light
   green: '#2EA366', // Green/Main
   greenLight: '#E3F8E2', // Green/Light
   red: '#E5404F', // Red/Main
@@ -39,12 +39,14 @@ export const T = {
 /// Parses `#RRGGBB` category colors; falls back to the brand purple for malformed values.
 export function naviHex(hex: string): string {
   const digits = hex.startsWith('#') ? hex.slice(1) : hex
-  return /^[0-9a-fA-F]{6}$/.test(digits) ? `#${digits}` : T.purple
+  return /^[0-9a-fA-F]{6}$/.test(digits) ? `#${digits}` : '#7165FF'
 }
 
 /// `color` at `opacity` over white (category tag washes).
 export function wash(hex: string, opacity: number): string {
-  const value = parseInt(naviHex(hex).slice(1), 16)
+  if (hex.startsWith('var(')) return `color-mix(in srgb, ${hex} ${opacity * 100}%, white)`
+  const color = naviHex(hex)
+  const value = parseInt(color.slice(1), 16)
   const mix = (channel: number) => Math.round(255 + (channel - 255) * opacity)
   return `rgb(${mix((value >> 16) & 0xff)}, ${mix((value >> 8) & 0xff)}, ${mix(value & 0xff)})`
 }
