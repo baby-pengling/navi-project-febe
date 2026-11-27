@@ -174,7 +174,7 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
 
 function Header({ now, name, actions }: { now: Date; name: string; actions?: React.ReactNode }) {
   return (
-    <HStack spacing={14}>
+    <HStack spacing={14} style={{ width: '100%', height: 48, flexShrink: 0 }}>
       <span className="truncate" style={{ ...F.title(23), color: T.ink }}>
         {greeting(now, name)}
       </span>

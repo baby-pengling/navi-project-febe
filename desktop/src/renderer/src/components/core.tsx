@@ -642,10 +642,10 @@ export function NaviTabHeader({ title, searchPrompt, searchText, onSearchChange,
   isSearchEnabled?: boolean
 }) {
   return (
-    <HStack>
+    <HStack style={{ width: '100%', height: 48, flexShrink: 0 }}>
       <span style={{ ...F.title(28), color: T.ink }}>{title}</span>
       <Spacer />
-      <HStack spacing={10}>
+      <HStack spacing={10} style={{ height: '100%' }}>
         <HStack
           spacing={5}
           style={{
