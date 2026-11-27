@@ -96,10 +96,10 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
 
   return (
     <VStack spacing={0} style={{ height: '100%' }}>
-      <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
+      <VStack spacing={8} style={{ flex: 1, minHeight: 0 }}>
         <Header now={now} name={settingsModel.name} />
-        <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
-          <VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+        <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
+          <VStack spacing={8} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <NaviPanel>
               <NaviSectionHeader
                 title="오늘 할 일"

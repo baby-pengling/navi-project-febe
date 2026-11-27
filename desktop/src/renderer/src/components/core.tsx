@@ -500,7 +500,7 @@ export function NaviCompressButton() {
 // MARK: - Main window building blocks
 
 /// White rounded card that holds each main-window section.
-export function NaviPanel({ spacing = 10, horizontalPadding = 20, verticalPadding = 15, fillsHeight, children, style }: {
+export function NaviPanel({ spacing = 8, horizontalPadding = 16, verticalPadding = 12, fillsHeight, children, style }: {
   spacing?: number
   horizontalPadding?: number
   verticalPadding?: number

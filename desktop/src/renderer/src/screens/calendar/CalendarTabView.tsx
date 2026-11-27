@@ -129,7 +129,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
   )
 
   return (
-    <VStack spacing={10} style={{ height: '100%' }}>
+    <VStack spacing={8} style={{ height: '100%' }}>
       <NaviTabHeader title="일정" searchPrompt="일정 검색" searchText={model.searchText} onSearchChange={(t) => model.set('searchText', t)} />
 
       {/* Toolbar: "2026년 9월", 주/월, ‹ 오늘 ›, 이번 주 미리 준비, 새 일정 */}
@@ -180,7 +180,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
               )
             })}
           </HStack>
-          <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
+          <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
             <Pane spacing={15}>
               <span style={{ ...F.heading(18), color: T.ink }}>{model.dayTitle}</span>
               <DayTimeline
@@ -194,7 +194,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
           </HStack>
         </VStack>
       ) : (
-        <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
+        <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
           <div style={{ flex: 1, minWidth: 0, background: T.cardWhite, borderRadius: 10, overflow: 'hidden' }}>
             <MonthCalendarGrid model={model} />
           </div>

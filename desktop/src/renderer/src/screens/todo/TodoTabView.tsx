@@ -98,7 +98,7 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
   const emptyMessage = model.searchText ? '검색 결과가 없어요.' : '할 일이 없어요. 아래 입력창이나 "새 할 일"로 추가해 보세요.'
 
   return (
-    <VStack spacing={10} style={{ height: '100%' }}>
+    <VStack spacing={8} style={{ height: '100%' }}>
       <NaviTabHeader title="할 일" searchPrompt="할 일 검색" searchText={model.searchText} onSearchChange={(t) => model.set('searchText', t)} />
       <HStack spacing={15}>
         <NaviSegmentTabs items={TODO_FILTERS} selection={model.filter} onSelect={(f) => model.set('filter', f)} title={(f) => filterTitle[f]} />
@@ -107,8 +107,8 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
         <NaviPillButton title="새 할 일" icon="IconPlus" style="primary" size="large" onClick={() => model.set('panel', { kind: 'newTodo' })} />
       </HStack>
 
-      <HStack spacing={10} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 10 }}>
-        <VStack spacing={10} style={{ flex: 1, minWidth: 0 }}>
+      <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
+        <VStack spacing={8} style={{ flex: 1, minWidth: 0 }}>
           <VStack spacing={20} style={{ flex: 1, minHeight: 0, padding: '15px 20px', background: T.cardWhite, borderRadius: 10 }}>
             <HStack>
               <span style={{ ...F.heading(18), color: T.ink }}>기한별 할 일</span>
