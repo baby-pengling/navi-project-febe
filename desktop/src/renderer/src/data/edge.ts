@@ -176,7 +176,9 @@ interface PersonDTO {
 
 interface MessageDTO {
   id: string
+  thread_id?: string | null
   from: PersonDTO
+  to?: string[] | null
   subject?: string | null
   snippet?: string | null
   body_text?: string | null
@@ -275,7 +277,9 @@ export class MailService {
   static message(row: MessageDTO, labels: Map<string, string>): MailMessage {
     return {
       id: row.id,
+      threadId: row.thread_id ?? undefined,
       sender: { name: row.from.name ?? '', email: row.from.email },
+      to: row.to ?? [],
       subject: row.subject ?? '(제목 없음)',
       body: row.body_text ?? row.snippet ?? '',
       bodyHtml: row.body_html ?? undefined,

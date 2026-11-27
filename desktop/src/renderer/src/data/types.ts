@@ -112,7 +112,9 @@ export const personDisplay = (person: MailPerson): string =>
 
 export interface MailMessage {
   id: string
+  threadId?: string
   sender: MailPerson
+  to?: string[]
   subject: string
   body: string
   bodyHtml?: string

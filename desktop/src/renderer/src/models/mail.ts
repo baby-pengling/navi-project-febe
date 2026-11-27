@@ -12,6 +12,17 @@ export const mailFilterTitle = (filter: MailFilter): string =>
 export const sameMailFilter = (a: MailFilter, b: MailFilter): boolean =>
   a.kind === b.kind && (a.kind !== 'category' || a.name === (b as { name: string }).name)
 
+function conversationKey(message: MailMessage, self: string): string {
+  if (message.threadId) return `thread:${message.threadId}`
+  const subject = message.subject.replace(/^(?:(?:re|fw|fwd)\s*:\s*)+/gi, '').trim().toLowerCase()
+  if (!subject || subject === '(제목 없음)') return `message:${message.id}`
+  const others = [message.sender.email, ...(message.to ?? [])]
+    .map((address) => address.trim().toLowerCase())
+    .filter((address) => address && address !== self.toLowerCase())
+    .sort()
+  return others.length ? `subject:${subject}|${[...new Set(others)].join(',')}` : `message:${message.id}`
+}
+
 export type MailPanel =
   | { kind: 'empty' }
   | { kind: 'detail'; id: string }
@@ -106,6 +117,22 @@ export class MailTabModel extends Observable {
           m.body.toLowerCase().includes(query)
       )
       .sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime())
+  }
+
+  get visibleConversations(): { latest: MailMessage; count: number }[] {
+    const seen = new Set<string>()
+    return this.visibleMessages.flatMap((message) => {
+      const key = conversationKey(message, this.senderAddress)
+      if (seen.has(key)) return []
+      seen.add(key)
+      return [{ latest: message, count: this.messages.filter((candidate) => conversationKey(candidate, this.senderAddress) === key).length }]
+    })
+  }
+
+  threadMessages(message: MailMessage): MailMessage[] {
+    const key = conversationKey(message, this.senderAddress)
+    return this.messages.filter((candidate) => conversationKey(candidate, this.senderAddress) === key)
+      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime())
   }
 
   message(id: string): MailMessage | undefined {

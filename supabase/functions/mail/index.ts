@@ -225,6 +225,7 @@ function present(row: CacheRow) {
   const mail = row.payload;
   return {
     id: row.id,
+    thread_id: mail.thread_id,
     from: mail.from,
     to: mail.to,
     subject: mail.subject,
