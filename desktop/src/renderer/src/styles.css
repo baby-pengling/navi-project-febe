@@ -13,6 +13,11 @@
 :root[data-navi-shape='bean'] .navi-mascot.shape-current .navi-shape-bean,
 :root[data-navi-shape='star'] .navi-mascot.shape-current .navi-shape-star { display: block; }
 
+.navi-mascot.shape-current { animation: navi-idle 3.2s ease-in-out infinite; }
+.navi-mascot.navi-bounce { animation: navi-bounce 0.52s cubic-bezier(.22,.8,.28,1.15); }
+@keyframes navi-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes navi-bounce { 0% { transform: scale(1,1); } 28% { transform: scale(1.12,.88) translateY(3px); } 58% { transform: scale(.92,1.12) translateY(-8px); } 78% { transform: scale(1.03,.97); } 100% { transform: scale(1,1); } }
+
 *,
 *::before,
 *::after {
@@ -48,7 +53,15 @@ button {
   margin: 0;
   cursor: pointer;
   text-align: inherit;
+  transition: transform 180ms cubic-bezier(.22,.8,.28,1.1), background-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
 }
+
+button:not(:disabled):hover { transform: translateY(-1px); }
+button:not(:disabled):active { transform: scale(.97); }
+button:focus-visible { outline: 2px solid var(--navi-primary, #7165ff); outline-offset: 2px; }
+.navi-interactive-row { transition: transform 180ms cubic-bezier(.22,.8,.28,1.1), background-color 180ms ease; }
+.navi-interactive-row:hover { transform: translateY(-1px); background-color: var(--navi-soft, #eceaff) !important; }
+.navi-interactive-row:active { transform: scale(.98); }
 
 button:disabled {
   cursor: default;
@@ -146,11 +159,12 @@ textarea::placeholder {
 }
 
 .fade-in {
-  animation: fade-in 0.15s ease-in-out;
+  animation: fade-in 0.2s ease-out;
 }
 @keyframes fade-in {
   from {
     opacity: 0;
+    transform: translateY(5px);
   }
 }
 
@@ -166,6 +180,7 @@ textarea::placeholder {
   border: 1px solid #dbd9e0;
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  animation: fade-in 0.18s ease-out;
 }
 .menu button {
   display: block;
@@ -192,6 +207,11 @@ textarea::placeholder {
   border: 1px solid #dbd9e0;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  animation: fade-in 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
 .hover-dim:hover {

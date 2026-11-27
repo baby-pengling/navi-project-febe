@@ -56,15 +56,53 @@ export function NaviLogoMark({ width }: { width: number }) {
 }
 
 export function NaviMascot({ width, shape, main, dot }: { width: number; shape?: AgentShape; main?: string; dot?: string }) {
-  return <svg role="img" aria-label="navi 캐릭터" className={`navi-mascot ${shape ? `shape-${shape}` : 'shape-current'}`} viewBox="0 0 120 100" width={width} height={width * 100 / 120} style={{ flexShrink: 0, overflow: 'visible', '--mascot-main': main ?? 'var(--navi-mascot-main, #7165FF)', '--mascot-dot': dot ?? T.lime } as CSSProperties}>
+  const mascotRef = useRef<SVGSVGElement>(null)
+  const eyesRef = useRef<SVGGElement>(null)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let frame = 0
+    let pointer = { x: 0, y: 0 }
+    const moveEyes = () => {
+      const rect = mascotRef.current?.getBoundingClientRect()
+      if (!rect || !eyesRef.current || rect.width === 0) return
+      const dx = pointer.x - (rect.left + rect.width / 2)
+      const dy = pointer.y - (rect.top + rect.height / 2)
+      const distance = Math.hypot(dx, dy) || 1
+      const amount = Math.min(distance / 110, 1) * 3.5
+      eyesRef.current.setAttribute('transform', `translate(${(dx / distance * amount).toFixed(2)} ${(dy / distance * amount).toFixed(2)})`)
+      frame = 0
+    }
+    const onMove = (event: PointerEvent) => {
+      pointer = { x: event.clientX, y: event.clientY }
+      if (!frame) frame = requestAnimationFrame(moveEyes)
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  const bounce = () => {
+    const element = mascotRef.current
+    if (!element) return
+    element.classList.remove('navi-bounce')
+    void element.getBoundingClientRect()
+    element.classList.add('navi-bounce')
+  }
+
+  return <svg ref={mascotRef} onPointerDown={bounce} onAnimationEnd={() => mascotRef.current?.classList.remove('navi-bounce')} role="img" aria-label="navi 캐릭터" className={`navi-mascot ${shape ? `shape-${shape}` : 'shape-current'}`} viewBox="0 0 120 100" width={width} height={width * 100 / 120} style={{ flexShrink: 0, overflow: 'visible', '--mascot-main': main ?? 'var(--navi-mascot-main, #7165FF)', '--mascot-dot': dot ?? T.lime } as CSSProperties}>
     <path className="navi-shape navi-shape-dome" d="M13 75C13 44 31 15 58 15c29 0 46 26 46 60 0 14-15 18-46 18S13 89 13 75Z" />
     <path className="navi-shape navi-shape-cloud" d="M15 73c-8-17 0-34 16-39 5-19 31-25 44-9 18-3 30 10 27 25 10 15 2 36-19 41H38C25 91 18 85 15 73Z" />
     <path className="navi-shape navi-shape-square" d="M38 15h42c17 0 25 10 25 26v29c0 16-9 23-25 23H38c-17 0-25-8-25-24V39c0-16 9-24 25-24Z" />
     <path className="navi-shape navi-shape-bean" d="M55 14c17-6 25 7 36 26 12 19 20 32 11 45-6 9-23 10-44 9-23 0-40-2-46-11-8-13 2-31 14-47 10-13 19-20 29-22Z" />
     <path className="navi-shape navi-shape-star" d="M59 12c10 0 13 17 21 21 7 5 23 5 26 15 3 9-10 20-10 28 0 9 3 17-5 21-8 5-22-5-32-5s-23 10-32 5c-9-5-5-17-6-24-2-8-13-16-10-25 3-10 20-11 27-16 8-5 11-20 21-20Z" />
     <circle cx="45" cy="49" r="12" fill="white"/><circle cx="75" cy="49" r="12" fill="white"/>
-    <circle cx="41" cy="47" r="6" fill="#19191C"/><circle cx="71" cy="47" r="6" fill="#19191C"/>
-    <path d="M43 43l.8 1.8L45.6 45.6l-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L43 43Z M73 43l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L73 43Z" fill="white" />
+    <g ref={eyesRef}>
+      <circle cx="41" cy="47" r="6" fill="#19191C"/><circle cx="71" cy="47" r="6" fill="#19191C"/>
+      <path d="M43 43l.8 1.8L45.6 45.6l-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L43 43Z M73 43l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L73 43Z" fill="white" />
+    </g>
     <circle cx="111" cy="83" r="8" fill="var(--mascot-dot)"/>
   </svg>
 }
