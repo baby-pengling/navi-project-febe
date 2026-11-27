@@ -3,7 +3,7 @@ import { F, T } from '@/lib/theme'
 import { useModel } from '@/lib/observable'
 import type { AssistantAttachment, CommandResult } from '@/data/edge'
 import type { AssistantPromptModel, PromptState } from '@/models/prompt'
-import { HStack, NaviCloseButton, NaviPromptInput, Spacer, Spinner, VStack } from './core'
+import { HStack, NaviCloseButton, NaviLoadingStatus, NaviPromptInput, Spacer, VStack } from './core'
 
 // Port of AssistantPrompt.swift's views. The model is shared through context (SwiftUI's
 // `environmentObject`).
@@ -31,12 +31,7 @@ function AssistantResultCard({ state, onClose }: { state: PromptState; onClose: 
       </HStack>
       <div className="scroll selectable" style={{ maxHeight: 220 }}>
         {state.kind === 'running' && (
-          <HStack spacing={8}>
-            <Spinner small />
-            <span className="truncate" style={{ ...F.body(12), color: T.grayText }}>
-              “{state.prompt}” 처리하고 있어요
-            </span>
-          </HStack>
+          <NaviLoadingStatus message={`“${state.prompt}” 처리하는 중…`} compact />
         )}
         {state.kind === 'finished' && <Answer result={state.result} />}
         {state.kind === 'failed' && <span style={{ ...F.body(12), color: T.red }}>{state.message}</span>}
