@@ -21,6 +21,7 @@ import {
 import { DayTimeline, ErrorText, NaviCheckbox, NewEventPanel, TodoItemRow, dashboardMeta } from '@/components/shared'
 import { PrepAddedPanel, PrepDetailPanel, SuggestionCard } from '@/components/todoPanels'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { ResizableColumns } from '@/components/ResizableColumns'
 
 const MODES: CalendarMode[] = ['week', 'month']
 
@@ -119,8 +120,8 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
     }
   })()
 
-  const rightColumn = (width: number) => (
-    <VStack spacing={10} style={{ width, flexShrink: 0, minHeight: 0 }}>
+  const rightColumn = () => (
+    <VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
       <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
         {rightPanel}
       </VStack>
@@ -180,7 +181,7 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
               )
             })}
           </HStack>
-          <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
+          <ResizableColumns id="calendar-week" initialLeft={68} style={{ paddingBottom: 6 }} left={
             <Pane spacing={15}>
               <span style={{ ...F.heading(18), color: T.ink }}>{model.dayTitle}</span>
               <DayTimeline
@@ -190,16 +191,14 @@ export function CalendarTabView({ model, onAddCategory, onStartPrep }: {
                 onSelect={(e) => model.set('panel', { kind: 'eventDetail', id: e.id })}
               />
             </Pane>
-            {rightColumn(439)}
-          </HStack>
+          } right={rightColumn()} />
         </VStack>
       ) : (
-        <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
+        <ResizableColumns id="calendar-month" initialLeft={78} style={{ paddingBottom: 6 }} left={
           <div style={{ flex: 1, minWidth: 0, background: T.cardWhite, borderRadius: 10, overflow: 'hidden' }}>
             <MonthCalendarGrid model={model} />
           </div>
-          {rightColumn(284)}
-        </HStack>
+        } right={rightColumn()} />
       )}
     </VStack>
   )

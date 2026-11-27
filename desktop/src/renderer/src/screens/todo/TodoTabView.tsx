@@ -19,6 +19,7 @@ import {
 import { ErrorText, NaviCheckbox, NewTodoPanel, TodoAddedPanel, TodoItemRow } from '@/components/shared'
 import { Card, DeadlinePanel, PrepAddedPanel, PrepDetailPanel, TodoDetailPanel, WeeklyPrepPanel } from '@/components/todoPanels'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { ResizableColumns } from '@/components/ResizableColumns'
 
 /// Figma "10 - 할 일": filter tabs, the deadline-grouped list with a quick-add bar on the
 /// left, and a right column that swaps between the overview (오늘의 흐름 + 카테고리), todo
@@ -36,7 +37,6 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
     setExpandedTodos((current) => current.has(todo.id) ? new Set() : todo.subtasks.length ? new Set([todo.id]) : new Set())
     model.set('panel', { kind: 'detail', id: todo.id })
   }
-  const rightWidth = 308
   const overview = () => model.set('panel', { kind: 'overview' })
 
   const isSelected = (todo: DashboardTodo) => (panel.kind === 'detail' || panel.kind === 'deadline') && panel.id === todo.id
@@ -107,7 +107,7 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
         <NaviPillButton title="새 할 일" icon="IconPlus" style="primary" size="large" onClick={() => model.set('panel', { kind: 'newTodo' })} />
       </HStack>
 
-      <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
+      <ResizableColumns id="todo" initialLeft={74} style={{ paddingBottom: 6 }} left={
         <VStack spacing={8} style={{ flex: 1, minWidth: 0 }}>
           <VStack spacing={20} style={{ flex: 1, minHeight: 0, padding: '15px 20px', background: T.cardWhite, borderRadius: 10 }}>
             <HStack>
@@ -157,14 +157,12 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
           </VStack>
           <NaviPromptInput prompt="- [ ] 할 일을 입력하세요  /기한  #카테고리" action="enter" onSubmit={(text) => model.quickAdd(text)} />
         </VStack>
-
-        <VStack spacing={10} style={{ width: rightWidth, flexShrink: 0, minHeight: 0 }}>
+      } right={<VStack spacing={10} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           <VStack spacing={10} style={{ flex: 1, minHeight: 0 }}>
             {rightPanel}
           </VStack>
           <NaviAssistantPrompt prompt="내가 놓친 할 일이 있어?" />
-        </VStack>
-      </HStack>
+        </VStack>} />
     </VStack>
   )
 }

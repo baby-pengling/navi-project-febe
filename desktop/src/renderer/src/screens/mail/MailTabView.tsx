@@ -18,6 +18,7 @@ import {
 } from '@/components/core'
 import { ErrorText, NaviCheckbox } from '@/components/shared'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { ResizableColumns } from '@/components/ResizableColumns'
 
 const DRAFTS: MailFilter = { kind: 'drafts' }
 
@@ -123,8 +124,8 @@ export function MailTabView({ model, onDialog }: {
         <NaviPillButton title="새 메일" icon="IconPlus" style="primary" size="large" onClick={() => model.compose()} />
       </HStack>
 
-      <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
-        <VStack spacing={5} className="scroll" style={{ width: 360, flexShrink: 0, padding: '15px 10px', background: T.cardWhite, borderRadius: 10 }}>
+      <ResizableColumns id="mail" initialLeft={30} style={{ paddingBottom: 6 }} left={
+        <VStack spacing={5} className="scroll" style={{ flex: 1, minWidth: 0, padding: '15px 10px', background: T.cardWhite, borderRadius: 10 }}>
           {isDrafts ? (
             <>
               {model.drafts.length === 0 && <EmptyList text="임시 보관한 메일이 없어요." />}
@@ -159,7 +160,7 @@ export function MailTabView({ model, onDialog }: {
             </>
           )}
         </VStack>
-        <VStack spacing={6} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+      } right={<VStack spacing={6} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           {rightPanel}
           {/* Load / send / star failures from the `mail` Edge Function. */}
           {model.errorMessage && (
@@ -167,8 +168,7 @@ export function MailTabView({ model, onDialog }: {
               <ErrorText>{model.errorMessage}</ErrorText>
             </span>
           )}
-        </VStack>
-      </HStack>
+        </VStack>} />
     </VStack>
   )
 }

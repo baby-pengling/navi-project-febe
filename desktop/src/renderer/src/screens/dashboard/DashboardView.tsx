@@ -9,6 +9,7 @@ import type { MainTab } from '../MainWindow'
 import { HStack, NaviCompressButton, NaviImage, NaviLoadingStatus, NaviMascot, NaviPanel, NaviPillButton, NaviSectionHeader, Spacer, VStack } from '@/components/core'
 import { DayTimeline, NewEventPanel, NewTodoPanel, TodoAddedPanel, TodoItemRow, dashboardMeta, clockTime, useNow, ErrorText } from '@/components/shared'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
+import { ResizableColumns } from '@/components/ResizableColumns'
 
 type RightPanel = { kind: 'schedule' } | { kind: 'newTodo' } | { kind: 'todoAdded'; todo: DashboardTodo } | { kind: 'newEvent' }
 
@@ -98,7 +99,7 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
     <VStack spacing={0} style={{ height: '100%' }}>
       <VStack spacing={8} style={{ flex: 1, minHeight: 0 }}>
         <Header now={now} name={settingsModel.name} />
-        <HStack spacing={8} align="stretch" style={{ flex: 1, minHeight: 0, paddingBottom: 6 }}>
+        <ResizableColumns id="dashboard" initialLeft={70} style={{ paddingBottom: 6 }} left={
           <VStack spacing={8} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <NaviPanel>
               <NaviSectionHeader
@@ -153,8 +154,7 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
               )}
             </NaviPanel>
           </VStack>
-          <div style={{ width: 418, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>{rightColumn}</div>
-        </HStack>
+        } right={<div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>{rightColumn}</div>} />
       </VStack>
       <NaviAssistantPrompt prompt="오늘 할 일을 정리해줘" />
     </VStack>
