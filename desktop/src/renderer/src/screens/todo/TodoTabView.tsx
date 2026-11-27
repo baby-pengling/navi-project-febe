@@ -8,6 +8,7 @@ import {
   NaviCategoryTag,
   NaviGroupSubtitle,
   NaviIcon,
+  NaviLoadingStatus,
   NaviPillButton,
   NaviPromptInput,
   NaviSectionHeader,
@@ -125,9 +126,10 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
             </HStack>
             <VStack spacing={20} className="scroll" style={{ flex: 1, minHeight: 0 }}>
               {model.errorMessage && <ErrorText>{model.errorMessage}</ErrorText>}
-              {model.groupedTodos.length === 0 && (
+              {model.isLoading && <NaviLoadingStatus message="할 일을 불러오는 중…" compact />}
+              {!model.isLoading && model.groupedTodos.length === 0 && (
                 <span style={{ ...F.body(12), color: T.grayText, padding: '8px 10px', background: T.itemBackground, borderRadius: 5 }}>
-                  {model.isLoading ? '할 일을 불러오는 중이에요…' : emptyMessage}
+                  {emptyMessage}
                 </span>
               )}
               {model.groupedTodos.map((section) => (

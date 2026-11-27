@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { F, T } from '@/lib/theme'
 import { useModel } from '@/lib/observable'
 import { errorText, type SessionStore } from '@/data/session'
-import { HStack, NaviButton, NaviImage, NaviLinkButton, NaviLogoMark, NaviMascot, NaviTextField, Spacer, Spinner, VStack } from '@/components/core'
+import { HStack, NaviButton, NaviImage, NaviLinkButton, NaviLoadingStatus, NaviLogoMark, NaviMascot, NaviTextField, Spacer, VStack } from '@/components/core'
 import { AppearancePicker } from '@/components/AppearancePicker'
 import { readAppearance, type AgentAppearance } from '@/lib/appearance'
 
@@ -136,7 +136,7 @@ function AppearanceSelection({ store, onNext }: { store: SessionStore; onNext: (
     <VStack spacing={22}>
       <VStack spacing={8} align="center"><span style={{ ...F.title(25), color: T.ink }}>나만의 navi 만들기</span><Subtitle>원하는 모양과 색을 골라 주세요. 설정에서 언제든 바꿀 수 있어요.</Subtitle></VStack>
       <AppearancePicker value={appearance} onChange={setAppearance} />
-      <NaviButton title="계속하기" isLoading={saving} onClick={() => void continueToInterests()} />
+      <NaviButton title="계속하기" isLoading={saving} loadingMessage="캐릭터를 저장하는 중…" onClick={() => void continueToInterests()} />
       {error && <InlineError message={error} />}
     </VStack>
   </NaviCard>
@@ -234,8 +234,8 @@ function Login({ store, notice, onBack, onSuccess }: {
   if (isSubmitting || isSuccessful) return (
     <NaviCard>
       <VStack spacing={18} align="center" style={{ textAlign: 'center' }}>
-        {isSuccessful ? <NaviMascot width={90} /> : <div className="navi-loading-logo"><NaviMascot width={90} /></div>}
-        <span style={{ ...F.body(14, 'semibold'), color: T.ink }}>{isSuccessful ? '로그인에 성공했어요.' : '로그인 중이에요...'}</span>
+        {isSuccessful ? <NaviMascot width={90} /> : <NaviLoadingStatus message="로그인 정보를 확인하는 중…" />}
+        {isSuccessful && <span style={{ ...F.body(12, 'light'), color: T.ink }}>로그인에 성공했어요.</span>}
       </VStack>
     </NaviCard>
   )
@@ -251,7 +251,7 @@ function Login({ store, notice, onBack, onSuccess }: {
         <NaviTextField title="이메일" value={resetEmail} onChange={setResetEmail} onSubmit={requestReset} autoFocus />
         {errorMessage && <InlineError message={errorMessage} />}
         {resetNotice && <InlineNotice message={resetNotice} />}
-        <NaviButton title="재설정 메일 보내기" isEnabled={!!resetEmail.trim()} isLoading={isResetting} onClick={requestReset} />
+        <NaviButton title="재설정 메일 보내기" isEnabled={!!resetEmail.trim()} isLoading={isResetting} loadingMessage="재설정 메일을 보내는 중…" onClick={requestReset} />
         <NaviLinkButton title="← 로그인으로 돌아가기" onClick={() => { setShowReset(false); setErrorMessage(null) }} />
       </VStack>
     </NaviCard>
@@ -310,7 +310,7 @@ export function PasswordRecovery({ store, onComplete }: { store: SessionStore; o
     <NaviTextField title="새 비밀번호" value={password} onChange={setPassword} isSecure isError={!!message && password.length < 8} />
     <NaviTextField title="비밀번호 확인" value={confirmation} onChange={setConfirmation} isSecure onSubmit={save} isError={!!message && password !== confirmation} />
     {message && <InlineError message={message} />}
-    <NaviButton title="비밀번호 저장" isLoading={isSaving} onClick={save} />
+    <NaviButton title="비밀번호 저장" isLoading={isSaving} loadingMessage="비밀번호를 저장하는 중…" onClick={save} />
   </VStack></NaviCard>
 }
 
@@ -399,7 +399,7 @@ function SignUp({ store, onBackToLogin, onSuccess }: { store: SessionStore; onBa
             />
           )}
           <VStack spacing={20}>
-            <NaviButton title="계정 만들기" isLoading={isSubmitting} onClick={submit} />
+            <NaviButton title="계정 만들기" isLoading={isSubmitting} loadingMessage="계정을 만드는 중…" onClick={submit} />
             <NaviLinkButton title="← 이미 계정이 있나요? 로그인 하러가기" onClick={onBackToLogin} />
           </VStack>
         </VStack>
@@ -411,7 +411,7 @@ function SignUp({ store, onBackToLogin, onSuccess }: { store: SessionStore; onBa
 export function LoadingView() {
   return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.background }}>
-      <Spinner />
+      <NaviLoadingStatus message="로그인 상태를 확인하는 중…" />
     </div>
   )
 }
@@ -602,8 +602,7 @@ function ServiceConnection({ store, gmailConnected, calendarConnected, onConnect
           />
           {isConnecting && (
             <HStack spacing={8} style={{ ...F.body(12), color: T.grayText }}>
-              <Spinner small />
-              브라우저에서 Google 계정을 선택하고 승인해 주세요.
+              <NaviLoadingStatus message="Google 계정 연결을 기다리는 중…" compact />
               <Spacer />
               <button type="button" onClick={() => store.cancelGoogleConnect()} style={{ ...F.body(12, 'semibold'), color: T.purple }}>
                 취소

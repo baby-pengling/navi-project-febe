@@ -485,7 +485,7 @@ export function NewTodoPanel({ categories, initialDraft, onCancel, onSave }: {
       {saveError && <ErrorText>{saveError}</ErrorText>}
       <HStack spacing={8}>
         <NaviDialogButton title="취소" role="cancel" onClick={onCancel} />
-        <NaviDialogButton title={isSaving ? '저장 중…' : '할 일 저장'} isEnabled={isTodoDraftValid(draft) && !isSaving} onClick={submit} />
+        <NaviDialogButton title="할 일 저장" isEnabled={isTodoDraftValid(draft) && !isSaving} isLoading={isSaving} loadingMessage="할 일을 저장하는 중…" onClick={submit} />
       </HStack>
     </NaviPanel>
   )
@@ -581,7 +581,7 @@ export function NewEventPanel({ categories, initialDraft, panelTitle = '새 일�
       {saveError && <ErrorText>{saveError}</ErrorText>}
       <HStack spacing={8}>
         <NaviDialogButton title="취소" role="cancel" onClick={onCancel} />
-        <NaviDialogButton title={isSaving ? '저장 중…' : '일정 저장'} isEnabled={isValid && !isSaving} onClick={() => isValid && save(draft)} />
+        <NaviDialogButton title="일정 저장" isEnabled={isValid && !isSaving} isLoading={isSaving} loadingMessage="일정을 저장하는 중…" onClick={() => isValid && save(draft)} />
       </HStack>
     </NaviPanel>
   )

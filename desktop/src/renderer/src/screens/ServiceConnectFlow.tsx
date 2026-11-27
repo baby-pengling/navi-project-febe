@@ -91,8 +91,10 @@ export function ServiceConnectFlow({ service, model, step, setStep, onFinish }: 
               <span style={{ ...F.body(10), color: T.grayText }}>{copy.sharedConsentNote}</span>
             </VStack>
             <NaviButton
-              title={model.isConnectingGoogle ? '브라우저에서 연동 중…' : 'Google 계정으로 계속'}
+              title="Google 계정으로 계속"
               isEnabled={!model.isConnectingGoogle}
+              isLoading={model.isConnectingGoogle}
+              loadingMessage="Google 계정 연결을 기다리는 중…"
               onClick={async () => setStep((await model.connectGoogle()) ? 'success' : 'failure')}
             />
             <NaviButton

@@ -44,8 +44,9 @@ export function SettingsView({ model, onDialog, onSignOut }: {
           <NaviPillButton title="관리" onClick={() => onDialog({ kind: 'googleDisconnect' })} />
         ) : (
           <NaviPillButton
-            title={model.isConnectingGoogle ? '연결 중…' : '연결'}
+            title="연결"
             isLoading={model.isConnectingGoogle}
+            loadingMessage="Google 계정을 연결하는 중…"
             onClick={() => void model.connectGoogle()}
           />
         )}
@@ -120,7 +121,7 @@ export function SettingsView({ model, onDialog, onSignOut }: {
                 <NaviSectionHeader title="나의 navi 꾸미기" />
                 <AppearancePicker value={model.appearance} onChange={(appearance) => model.setAppearance(appearance)} />
                 {model.appearanceError && <span style={{ ...F.body(11), color: T.red }}>{model.appearanceError}</span>}
-                <NaviPillButton title={model.isSavingAppearance ? '저장 중…' : '변경 저장'} isLoading={model.isSavingAppearance} style="primary" onClick={() => void model.saveAppearance()} />
+                <NaviPillButton title="변경 저장" isLoading={model.isSavingAppearance} loadingMessage="캐릭터를 저장하는 중…" style="primary" onClick={() => void model.saveAppearance()} />
               </NaviPanel>
             </VStack>
           </div>

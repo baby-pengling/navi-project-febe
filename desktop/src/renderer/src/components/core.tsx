@@ -64,8 +64,16 @@ export function NaviMascot({ width, shape, main, dot }: { width: number; shape?:
     <path className="navi-shape navi-shape-star" d="M59 12c10 0 13 17 21 21 7 5 23 5 26 15 3 9-10 20-10 28 0 9 3 17-5 21-8 5-22-5-32-5s-23 10-32 5c-9-5-5-17-6-24-2-8-13-16-10-25 3-10 20-11 27-16 8-5 11-20 21-20Z" />
     <circle cx="45" cy="49" r="12" fill="white"/><circle cx="75" cy="49" r="12" fill="white"/>
     <circle cx="41" cy="47" r="6" fill="#19191C"/><circle cx="71" cy="47" r="6" fill="#19191C"/>
+    <path d="M43 43l.8 1.8L45.6 45.6l-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L43 43Z M73 43l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L73 43Z" fill="white" />
     <circle cx="111" cy="83" r="8" fill="var(--mascot-dot)"/>
   </svg>
+}
+
+export function NaviLoadingStatus({ message, compact = false }: { message: string; compact?: boolean }) {
+  return <span role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(compact ? 10 : 12, 'light'), color: T.grayText }}>
+    <span className="navi-loading-logo"><NaviLogoMark width={compact ? 18 : 24} /></span>
+    {message}
+  </span>
 }
 
 export function Spinner({ small }: { small?: boolean }) {
@@ -293,11 +301,12 @@ NaviDateField.format = (date: Date) => format(date, 'yyyy.MM.dd  HH:mm')
 // MARK: - Buttons
 
 /// Full-width onboarding call-to-action button.
-export function NaviButton({ title, style = 'primary', isEnabled = true, isLoading = false, onClick }: {
+export function NaviButton({ title, style = 'primary', isEnabled = true, isLoading = false, loadingMessage, onClick }: {
   title: string
   style?: 'primary' | 'secondary'
   isEnabled?: boolean
   isLoading?: boolean
+  loadingMessage?: string
   onClick: () => void
 }) {
   const background = !isEnabled ? T.disabled : style === 'primary' ? T.purple : T.lavender
@@ -318,7 +327,7 @@ export function NaviButton({ title, style = 'primary', isEnabled = true, isLoadi
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="navi-loading-logo"><NaviMascot width={22} /></span>{title}</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, ...F.body(11, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 3 }}><NaviLogoMark width={18} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
@@ -332,13 +341,14 @@ export function NaviLinkButton({ title, onClick }: { title: string; onClick: () 
 }
 
 /// Compact tinted button used inside cards ("할 일 추가", "비밀번호 변경", "연결", "관리").
-export function NaviPillButton({ title, icon, style = 'accent', size = 'regular', disabled, isLoading = false, onClick }: {
+export function NaviPillButton({ title, icon, style = 'accent', size = 'regular', disabled, isLoading = false, loadingMessage, onClick }: {
   title: string
   icon?: string
   style?: 'accent' | 'success' | 'outline' | 'primary'
   size?: 'regular' | 'large'
   disabled?: boolean
   isLoading?: boolean
+  loadingMessage?: string
   onClick: () => void
 }) {
   const colors = {
@@ -370,8 +380,8 @@ export function NaviPillButton({ title, icon, style = 'accent', size = 'regular'
         opacity: disabled ? 0.6 : 1
       }}
     >
-      {isLoading ? <span className="navi-loading-logo"><NaviMascot width={18} /></span> : icon && <NaviIcon name={icon} />}
-      {title}
+      {isLoading ? <span className="navi-loading-logo" style={style === 'primary' ? { background: T.cardWhite, borderRadius: '50%', padding: 2 } : undefined}><NaviLogoMark width={16} /></span> : icon && <NaviIcon name={icon} />}
+      <span style={isLoading ? F.body(10, 'light') : undefined}>{isLoading ? loadingMessage ?? `${title} 중…` : title}</span>
     </button>
   )
 }
@@ -386,11 +396,12 @@ export function NaviCloseButton({ onClick }: { onClick: () => void }) {
 }
 
 /// Figma dialog button row item: white "취소", lavender secondary, purple primary, or red destructive.
-export function NaviDialogButton({ title, role = 'primary', isEnabled = true, isLoading = false, onClick }: {
+export function NaviDialogButton({ title, role = 'primary', isEnabled = true, isLoading = false, loadingMessage, onClick }: {
   title: string
   role?: 'cancel' | 'secondary' | 'primary' | 'destructive'
   isEnabled?: boolean
   isLoading?: boolean
+  loadingMessage?: string
   onClick: () => void
 }) {
   const [color, background] = {
@@ -416,7 +427,7 @@ export function NaviDialogButton({ title, role = 'primary', isEnabled = true, is
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Spinner small />{title} 중…</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(10, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 2 }}><NaviLogoMark width={15} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
