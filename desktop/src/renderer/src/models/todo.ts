@@ -131,7 +131,7 @@ export class TodoTabModel extends Observable {
         group,
         todos: visible
           .filter((todo) => this.group(todo) === group)
-          .sort((a, b) => due(a) - due(b) || a.orderIndex - b.orderIndex)
+          .sort((a, b) => a.orderIndex - b.orderIndex || due(a) - due(b))
       }))
       .filter((entry) => entry.todos.length > 0)
   }
@@ -228,24 +228,31 @@ export class TodoTabModel extends Observable {
     this.saveFields(this.update(todoID, (t) => ({ ...t, dueAt, day: startOfDay(dueAt) }))!)
   }
 
-  move(id: string, targetID: string): void {
+  move(id: string, targetID: string, position: 'before' | 'after' = 'before'): void {
+    const source = this.todo(id)
     const target = this.todo(targetID)
-    if (id === targetID || !this.todo(id) || !target) return
-    // Take the target's slot: just before it in order_index.
-    const lower = this.todos.filter((t) => t.id !== id && t.orderIndex < target.orderIndex).map((t) => t.orderIndex)
-    const before = lower.length ? Math.max(...lower) : target.orderIndex - 2
-    const newIndex = (before + target.orderIndex) / 2
-    const moveToToday = this.group(target) === 'today' && this.group(this.todo(id)!) !== 'today'
-    const today = startOfDay(new Date())
-    const updated = this.update(id, (t) => {
-      if (!moveToToday) return { ...t, orderIndex: newIndex }
-      const dueAt = t.dueAt ? new Date(t.dueAt) : new Date(today)
-      if (t.dueAt) dueAt.setFullYear(today.getFullYear(), today.getMonth(), today.getDate())
-      else dueAt.setHours(18, 0, 0, 0)
-      return { ...t, orderIndex: newIndex, dueAt, day: today }
+    if (id === targetID || !source || !target) return
+    const targetGroup = this.group(target)
+    if (!targetGroup) return
+    const changesDay = this.group(source) !== targetGroup
+    let moved = source
+    if (changesDay) {
+      const dueAt = target.dueAt ? new Date(source.dueAt ?? target.dueAt) : undefined
+      if (dueAt && target.dueAt) dueAt.setFullYear(target.dueAt.getFullYear(), target.dueAt.getMonth(), target.dueAt.getDate())
+      moved = { ...source, dueAt, day: startOfDay(dueAt ?? target.day ?? new Date()) }
+    }
+    const ordered = this.todos.filter((todo) => todo.id !== id && this.group(todo) === targetGroup)
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+    const targetIndex = ordered.findIndex((todo) => todo.id === targetID)
+    ordered.splice(targetIndex + (position === 'after' ? 1 : 0), 0, moved)
+    const order = new Map(ordered.map((todo, index) => [todo.id, index + 1]))
+    this.todos = this.todos.map((todo) => {
+      const nextIndex = order.get(todo.id)
+      return todo.id === id ? { ...moved, orderIndex: nextIndex! } : nextIndex === undefined ? todo : { ...todo, orderIndex: nextIndex }
     })
-    this.persist('순서를 저장하지 못했어요.', (store) => store.reorder([{ id, order_index: newIndex }]))
-    if (moveToToday && updated) this.saveFields(updated)
+    this.changed()
+    this.persist('순서를 저장하지 못했어요.', (store) => store.reorder(ordered.map((todo, index) => ({ id: todo.id, order_index: index + 1 }))))
+    if (changesDay) this.saveFields(this.todo(id)!)
   }
 
   moveToToday(id: string): void {

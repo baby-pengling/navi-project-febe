@@ -131,7 +131,7 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
                     meta={dashboardMeta(todo)}
                     onToggle={() => model.toggleTodo(todo.id)}
                     onOpen={() => onSelectTab('todo')}
-                    onDropTodo={(dragged) => model.moveTodo(dragged, todo.id)}
+                    onDropTodo={(dragged, position) => model.moveTodo(dragged, todo.id, position)}
                   />
                 ))}
               </VStack>

@@ -52,30 +52,39 @@ export function dashboardMeta(todo: DashboardTodo): TodoMeta | undefined {
 }
 
 /// HTML5 drag and drop for todo rows: the payload is the todo id.
-export function useTodoDrag(id: string, onDrop?: (draggedID: string) => void) {
-  const [isTarget, setTarget] = useState(false)
+let activeTodoDragID: string | null = null
+export function useTodoDrag(id: string, onDrop?: (draggedID: string, position: 'before' | 'after') => void) {
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null)
   return {
-    isTarget,
+    dropPosition,
     props: {
       draggable: true,
       onDragStart: (e: React.DragEvent) => {
+        activeTodoDragID = id
         e.dataTransfer.setData('application/x-navi-todo', id)
+        e.dataTransfer.setData('text/plain', id)
         e.dataTransfer.effectAllowed = 'move'
       },
+      onDragEnd: () => { activeTodoDragID = null; setDropPosition(null) },
       onDragOver: (e: React.DragEvent) => {
-        if (!onDrop || !e.dataTransfer.types.includes('application/x-navi-todo')) return
+        if (!onDrop || !activeTodoDragID || activeTodoDragID === id) return
         e.preventDefault()
-        setTarget(true)
+        e.dataTransfer.dropEffect = 'move'
+        const rect = e.currentTarget.getBoundingClientRect()
+        const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+        if (dropPosition !== position) setDropPosition(position)
       },
-      onDragLeave: () => setTarget(false),
+      onDragLeave: (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropPosition(null) },
       onDrop: (e: React.DragEvent) => {
-        setTarget(false)
-        const dragged = e.dataTransfer.getData('application/x-navi-todo')
-        if (dragged && onDrop) {
+        const dragged = e.dataTransfer.getData('application/x-navi-todo') || activeTodoDragID
+        if (dragged && dragged !== id && onDrop) {
           e.preventDefault()
           e.stopPropagation()
-          onDrop(dragged)
+          const rect = e.currentTarget.getBoundingClientRect()
+          onDrop(dragged, e.clientY < rect.top + rect.height / 2 ? 'before' : 'after')
         }
+        activeTodoDragID = null
+        setDropPosition(null)
       }
     }
   }
@@ -93,7 +102,7 @@ export function TodoItemRow({ todo, meta, isSelected, groupedSelection = false, 
   onToggle: () => void
   onOpen: () => void
   /** Drop target: another todo was dropped on this row. */
-  onDropTodo?: (draggedID: string) => void
+  onDropTodo?: (draggedID: string, position: 'before' | 'after') => void
   onClick?: () => void
 }) {
   const drag = useTodoDrag(todo.id, onDropTodo)
@@ -101,7 +110,6 @@ export function TodoItemRow({ todo, meta, isSelected, groupedSelection = false, 
     <div
       {...drag.props}
       onClick={onClick}
-      className={drag.isTarget ? 'drop-target' : undefined}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -110,6 +118,7 @@ export function TodoItemRow({ todo, meta, isSelected, groupedSelection = false, 
         borderRadius: 5,
         background: isSelected || groupedSelection ? T.lavender : T.itemBackground,
         border: `1px solid ${isSelected && !groupedSelection ? T.purple : 'transparent'}`,
+        boxShadow: drag.dropPosition ? `inset 0 ${drag.dropPosition === 'before' ? '3px' : '-3px'} ${T.purple}` : undefined,
         cursor: onClick ? 'pointer' : undefined
       }}
     >

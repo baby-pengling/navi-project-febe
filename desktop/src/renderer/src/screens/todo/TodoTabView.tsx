@@ -36,6 +36,7 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
 
   const panel = model.panel
   const [expandedTodos, setExpandedTodos] = useState<Set<string>>(new Set())
+  const [draggingTodoID, setDraggingTodoID] = useState<string | null>(null)
   const selectTodo = (todo: DashboardTodo) => {
     setExpandedTodos((current) => current.has(todo.id) ? new Set() : todo.subtasks.length ? new Set([todo.id]) : new Set())
     model.set('panel', { kind: 'detail', id: todo.id })
@@ -99,6 +100,14 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
   })()
 
   const emptyMessage = model.searchText ? '검색 결과가 없어요.' : '할 일이 없어요. 아래 입력창이나 "새 할 일"로 추가해 보세요.'
+  const groupedTodos = model.groupedTodos
+  const afterOverdue = groupedTodos.findIndex((section) => section.group !== 'overdue')
+  const todayInsertIndex = afterOverdue < 0 ? groupedTodos.length : afterOverdue
+  const sections = draggingTodoID && ['all', 'today', 'thisWeek'].includes(model.filter) && !groupedTodos.some((section) => section.group === 'today')
+    ? [...groupedTodos.slice(0, todayInsertIndex),
+      { group: 'today' as const, todos: [] },
+      ...groupedTodos.slice(todayInsertIndex)]
+    : groupedTodos
 
   return (
     <VStack spacing={8} style={{ height: '100%' }}>
@@ -121,7 +130,7 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
                 미완료 {model.openCount} · 완료 {model.doneCount}
               </span>
             </HStack>
-            <VStack spacing={20} className="scroll" style={{ flex: 1, minHeight: 0 }}>
+            <VStack spacing={20} className="scroll" style={{ flex: 1, minHeight: 0 }} onDragStart={(event) => setDraggingTodoID(event.dataTransfer.getData('application/x-navi-todo') || null)} onDragEnd={() => setDraggingTodoID(null)}>
               {model.errorMessage && <ErrorText>{model.errorMessage}</ErrorText>}
               {model.isLoading && <NaviLoadingStatus message="할 일을 불러오는 중…" compact />}
               {!model.isLoading && model.groupedTodos.length === 0 && (
@@ -129,11 +138,12 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
                   {emptyMessage}
                 </span>
               )}
-              {model.groupedTodos.map((section) => (
+              {sections.map((section) => (
                 <VStack key={section.group} spacing={10}
-                  onDragOver={section.group === 'today' ? (event) => { if (event.dataTransfer.types.includes('application/x-navi-todo')) event.preventDefault() } : undefined}
-                  onDrop={section.group === 'today' ? (event) => { const id = event.dataTransfer.getData('application/x-navi-todo'); if (id) { event.preventDefault(); model.moveToToday(id) } } : undefined}>
+                  onDragOver={section.group === 'today' ? (event) => { if (event.dataTransfer.types.includes('application/x-navi-todo') || event.dataTransfer.types.includes('text/plain')) event.preventDefault() } : undefined}
+                  onDrop={section.group === 'today' ? (event) => { const id = event.dataTransfer.getData('application/x-navi-todo') || event.dataTransfer.getData('text/plain'); if (id) { event.preventDefault(); model.moveToToday(id); setDraggingTodoID(null) } } : undefined}>
                   <NaviGroupSubtitle title={groupTitle[section.group]} count={section.todos.length} isAlert={section.group === 'overdue'} />
+                  {section.group === 'today' && section.todos.length === 0 && draggingTodoID && <div style={{ ...F.body(11), color: T.purple, background: T.lavender, border: `1px dashed ${T.purple}`, borderRadius: 6, padding: '12px 16px' }}>여기에 놓으면 기한이 오늘로 바뀝니다</div>}
                   {section.todos.map((todo) => (
                     <VStack key={todo.id} spacing={4} style={isSelected(todo) && todo.subtasks.length > 0 && expandedTodos.has(todo.id) ? { background: T.lavender, border: `1px solid ${T.purple}`, borderRadius: 6, paddingBottom: 4 } : undefined}>
                     <TodoItemRow
@@ -145,7 +155,7 @@ export function TodoTabView({ model, onAddCategory }: { model: TodoTabModel; onA
                       onToggle={() => model.toggle(todo.id)}
                       onOpen={() => selectTodo(todo)}
                       onClick={() => selectTodo(todo)}
-                      onDropTodo={(dragged) => model.move(dragged, todo.id)}
+                      onDropTodo={(dragged, position) => model.move(dragged, todo.id, position)}
                     />
                     {expandedTodos.has(todo.id) && todo.subtasks.map((subtask) => (
                       <div key={subtask.id} onClick={() => model.set('panel', { kind: 'detail', id: todo.id })} style={{ ...F.body(12), color: subtask.isDone ? T.grayText : T.ink, display: 'flex', alignItems: 'center', gap: 9, padding: '6px 12px 6px 52px', textAlign: 'left', textDecoration: subtask.isDone ? 'line-through' : undefined, cursor: 'pointer' }}>

@@ -225,9 +225,3 @@ textarea::placeholder {
 .hover-dim:hover {
   opacity: 0.85;
 }
-
-.drop-target {
-  outline: 2px dashed var(--navi-primary, #7165ff);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
