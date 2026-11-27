@@ -174,7 +174,7 @@ function Header({ now, name }: { now: Date; name: string }) {
         <DateChip text={format(now, 'dd')} />
       </HStack>
       <NaviMascot width={48} />
-      <NaviCompressButton compact />
+      <NaviCompressButton />
     </HStack>
   )
 }

@@ -471,7 +471,7 @@ export function NaviDialogButton({ title, role = 'primary', isEnabled = true, is
 }
 
 /// Figma "Resize Button / Compress": hides the main window and shows the floating mini widget.
-export function NaviCompressButton({ compact = false }: { compact?: boolean }) {
+export function NaviCompressButton() {
   return (
     <button
       type="button"
@@ -484,15 +484,15 @@ export function NaviCompressButton({ compact = false }: { compact?: boolean }) {
         background: T.purple,
         borderRadius: 5,
         padding: 8,
-        width: compact ? 36 : 44,
-        height: compact ? 35 : 42,
+        width: 36,
+        height: 35,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0
       }}
     >
-      <NaviIcon name="IconCompress" size={compact ? 19 : 24} style={{ transform: 'rotate(90deg)' }} />
+      <NaviIcon name="IconCompress" size={19} style={{ transform: 'rotate(90deg)' }} />
     </button>
   )
 }
