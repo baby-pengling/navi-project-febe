@@ -3,6 +3,7 @@ import { F, T, naviHex } from '@/lib/theme'
 import { format, isSameDay, isToday, addDays, startOfDay, DAY } from '@/lib/dates'
 import { useModel } from '@/lib/observable'
 import { supabase } from '@/lib/supabase'
+import { applyAppearance, DEFAULT_APPEARANCE, readAppearance } from '@/lib/appearance'
 import type { DashboardTodo, NaviCategory } from '@/data/types'
 import { FloatingWidgetModel, type FloatingMail } from '@/models/floating'
 import {
@@ -11,7 +12,7 @@ import {
   NaviCategoryTag,
   NaviFieldBox,
   NaviIcon,
-  NaviImage,
+  NaviLogoMark,
   NaviMascot,
   NaviMenu,
   NaviPanelHeader,
@@ -46,14 +47,19 @@ export function FloatingWidget() {
     const client = supabase
     client?.auth.getSession().then(({ data }) => {
       const metadata = data.session?.user.user_metadata ?? {}
+      applyAppearance(readAppearance(metadata))
       model.setUserName((metadata.navi_name ?? metadata.name ?? '') as string)
       if (data.session) model.connect(client, data.session.user.id)
     })
     const reset = window.navi.widget.onReset(() => model.reset())
     const { data: auth } = client?.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') model.clear()
+      if (event === 'SIGNED_OUT') {
+        applyAppearance(DEFAULT_APPEARANCE)
+        model.clear()
+      }
       else if (session) setTimeout(() => {
         const metadata = session.user.user_metadata ?? {}
+        applyAppearance(readAppearance(metadata))
         model.setUserName((metadata.navi_name ?? metadata.name ?? '') as string)
         model.connect(client, session.user.id)
       }, 0)
@@ -188,7 +194,7 @@ function Chrome({ backTitle, title, subtitle, caption, onBack, openMain, childre
           {/* The title row moves the window (SwiftUI's movable-by-background panel). */}
           <HStack spacing={10} style={drag}>
             <HStack spacing={12} style={{ minWidth: 0 }}>
-              <NaviImage name="LogoMark" width={30} height={30} />
+              <NaviLogoMark width={30} />
               <span className="truncate" style={{ ...F.heading(18), color: T.dark }}>
                 {title}
               </span>

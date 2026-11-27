@@ -3,7 +3,7 @@ import { F, T } from '@/lib/theme'
 import { useModel } from '@/lib/observable'
 import type { ChatMessage, ChatSession } from '@/data/types'
 import { ChatTabModel } from '@/models/chat'
-import { HStack, NaviIcon, NaviMascot, NaviPromptInput, NaviTabHeader, VStack } from '@/components/core'
+import { HStack, NaviIcon, NaviLoadingStatus, NaviMascot, NaviPromptInput, NaviTabHeader, VStack } from '@/components/core'
 
 const LimeDot = () => <span style={{ width: 6, height: 6, borderRadius: '50%', background: T.lime, flexShrink: 0 }} />
 
@@ -116,7 +116,7 @@ function Messages({ model, session }: { model: ChatTabModel; session: ChatSessio
             />
           )
         )}
-        {isResponding && <HStack spacing={8} style={{ ...F.body(12), color: T.grayText }}><span className="navi-loading-logo"><NaviMascot width={28} /></span>navi가 답변을 만들고 있어요…</HStack>}
+        {isResponding && <NaviLoadingStatus message="navi가 답변을 만드는 중…" />}
         {model.errorMessage && <span style={{ ...F.body(12), color: T.red }}>{model.errorMessage}</span>}
       </VStack>
     </div>

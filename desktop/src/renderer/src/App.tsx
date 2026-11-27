@@ -3,6 +3,7 @@ import { useModel } from './lib/observable'
 import { errorText, SessionStore } from './data/session'
 import { ConfigurationErrorView, LoadingView, OnboardingRouter, PasswordRecovery, type OnboardingStep } from './screens/Onboarding'
 import { MainWindow } from './screens/MainWindow'
+import { applyAppearance, DEFAULT_APPEARANCE, readAppearance } from './lib/appearance'
 
 const COMPLETED_KEY = 'hasCompletedOnboarding'
 
@@ -34,13 +35,14 @@ export function App() {
   useEffect(() => window.navi.onDeepLink((url) => store.handleCallback(url)), [store])
 
   const isAuthenticated = store.session !== null
+  useEffect(() => applyAppearance(isAuthenticated ? readAppearance(store.session?.user.user_metadata) : DEFAULT_APPEARANCE), [isAuthenticated, store.session?.user.user_metadata?.navi_agent_shape, store.session?.user.user_metadata?.navi_agent_color])
   const isCompleted = store.onboardingState.isCompleted
   useEffect(() => {
     if (isAuthenticated && isCompleted) setCompleted(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isCompleted])
 
-  const showsMain = store.isConfigured && !store.isRestoringSession && hasCompletedOnboarding && isAuthenticated && !store.isPasswordRecovery && !store.isLoginTransitioning
+  const showsMain = store.isConfigured && !store.isRestoringSession && hasCompletedOnboarding && store.onboardingState.hasAppearance && isAuthenticated && !store.isPasswordRecovery && !store.isLoginTransitioning
 
   const signOut = async () => {
     // The session is gone even if this throws (see `signOut`), so always reset.

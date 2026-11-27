@@ -1,5 +1,18 @@
 @import './fonts/fonts.css';
 
+.navi-shape { display: none; fill: var(--mascot-main); }
+.navi-mascot.shape-dome .navi-shape-dome,
+.navi-mascot.shape-cloud .navi-shape-cloud,
+.navi-mascot.shape-square .navi-shape-square,
+.navi-mascot.shape-bean .navi-shape-bean,
+.navi-mascot.shape-star .navi-shape-star,
+:root:not([data-navi-shape]) .navi-mascot.shape-current .navi-shape-dome,
+:root[data-navi-shape='dome'] .navi-mascot.shape-current .navi-shape-dome,
+:root[data-navi-shape='cloud'] .navi-mascot.shape-current .navi-shape-cloud,
+:root[data-navi-shape='square'] .navi-mascot.shape-current .navi-shape-square,
+:root[data-navi-shape='bean'] .navi-mascot.shape-current .navi-shape-bean,
+:root[data-navi-shape='star'] .navi-mascot.shape-current .navi-shape-star { display: block; }
+
 *,
 *::before,
 *::after {
@@ -47,7 +60,7 @@ button:disabled {
   transition: background-color 0.15s ease;
 }
 .navi-link-button:hover {
-  background: #eceaff;
+  background: var(--navi-soft, #eceaff);
 }
 .password-reset-link:hover {
   background: #ffe3e5;
@@ -116,8 +129,8 @@ textarea::placeholder {
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(113, 101, 255, 0.2);
-  border-top-color: #7165ff;
+  border: 2px solid var(--navi-soft, #eceaff);
+  border-top-color: var(--navi-primary, #7165ff);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
@@ -163,7 +176,7 @@ textarea::placeholder {
   white-space: nowrap;
 }
 .menu button:hover {
-  background: #7165ff;
+  background: var(--navi-primary, #7165ff);
   color: #fff;
 }
 .menu .category-none-option:hover {
@@ -186,7 +199,7 @@ textarea::placeholder {
 }
 
 .drop-target {
-  outline: 2px dashed #7165ff;
+  outline: 2px dashed var(--navi-primary, #7165ff);
   outline-offset: 2px;
   border-radius: 6px;
 }

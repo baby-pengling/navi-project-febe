@@ -6,7 +6,7 @@ import type { DashboardMail, DashboardTodo } from '@/data/types'
 import type { DashboardModel } from '@/models/dashboard'
 import type { SettingsModel } from '@/models/settings'
 import type { MainTab } from '../MainWindow'
-import { HStack, NaviCompressButton, NaviImage, NaviPanel, NaviPillButton, NaviSectionHeader, Spacer, VStack } from '@/components/core'
+import { HStack, NaviCompressButton, NaviImage, NaviLoadingStatus, NaviMascot, NaviPanel, NaviPillButton, NaviSectionHeader, Spacer, VStack } from '@/components/core'
 import { DayTimeline, NewEventPanel, NewTodoPanel, TodoAddedPanel, TodoItemRow, dashboardMeta, clockTime, useNow, ErrorText } from '@/components/shared'
 import { NaviAssistantPrompt } from '@/components/AssistantPrompt'
 
@@ -106,9 +106,10 @@ export function DashboardView({ model, settingsModel, onSelectTab, onConnect }: 
                 tag={`${model.completedTodoCount}/${model.todos.length} 완료`}
                 onViewAll={() => onSelectTab('todo')}
               />
-              {model.todos.length === 0 && (
+              {model.isLoadingTodos && <NaviLoadingStatus message="오늘 할 일을 불러오는 중…" compact />}
+              {!model.isLoadingTodos && model.todos.length === 0 && (
                 <span style={{ ...F.body(12), color: T.grayText, padding: '8px 10px', background: T.itemBackground, borderRadius: 5 }}>
-                  {model.isLoadingTodos ? '할 일을 불러오는 중이에요…' : '오늘 할 일이 없어요.'}
+                  오늘 할 일이 없어요.
                 </span>
               )}
               <VStack spacing={7}>
@@ -172,6 +173,7 @@ function Header({ now, name }: { now: Date; name: string }) {
         <DateChip text={format(now, 'MM')} />
         <DateChip text={format(now, 'dd')} />
       </HStack>
+      <NaviMascot width={48} />
       <NaviCompressButton compact />
     </HStack>
   )

@@ -6,7 +6,9 @@ import { MailTabModel, mailFilterTitle, sameMailFilter, type MailFilter } from '
 import type { MainDialog } from '../MainWindow'
 import {
   HStack,
+  NaviIcon,
   NaviImage,
+  NaviLoadingStatus,
   NaviPanelHeader,
   NaviPillButton,
   NaviSegmentTabs,
@@ -48,11 +50,14 @@ export function MailTabView({ model, onDialog }: {
     switch (panel.kind) {
       case 'empty':
         return (
-          <div style={{ flex: 1, background: T.cardWhite, borderRadius: 10, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            <NaviImage name="MailEmptyState" width={250} height={248.7} style={{ position: 'absolute', opacity: 0.5, filter: 'blur(16px)' }} />
-            <span style={{ ...F.paperlogy(18), color: T.ink, position: 'relative' }}>
-              {isDrafts ? '좌측에서 임시 보관한 메일을 선택해주세요.' : '좌측에서 메일을 선택해주세요.'}
-            </span>
+          <div style={{ flex: 1, background: T.cardWhite, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 30 }}>
+            {model.isLoading ? <NaviLoadingStatus message="메일을 불러오는 중이에요…" /> : <VStack spacing={12} align="center" style={{ maxWidth: 280, textAlign: 'center' }}>
+              <span style={{ width: 58, height: 58, borderRadius: 18, background: T.lavender, color: T.purple, display: 'grid', placeItems: 'center' }}><NaviIcon name="SidebarMail" size={26} /></span>
+              <span style={{ ...F.heading(17), color: T.ink }}>{isDrafts ? '임시 보관한 메일' : '메일 내용'}</span>
+              <span style={{ ...F.body(12, 'light'), color: T.grayText, lineHeight: 1.5 }}>
+                {isDrafts ? '왼쪽에서 임시 보관한 메일을 선택해 주세요.' : '왼쪽에서 메일을 선택하면 여기에서 내용을 볼 수 있어요.'}
+              </span>
+            </VStack>}
           </div>
         )
       case 'detail': {
@@ -137,7 +142,7 @@ export function MailTabView({ model, onDialog }: {
             </>
           ) : (
             <>
-              {model.visibleMessages.length === 0 && <EmptyList text={model.isLoading ? '메일을 불러오는 중이에요…' : '메일이 없어요.'} />}
+              {model.visibleMessages.length === 0 && (model.isLoading ? <NaviLoadingStatus message="메일을 불러오는 중이에요…" compact /> : <EmptyList text="메일이 없어요." />)}
               {model.visibleMessages.map((message) => (
                 <MailListRow
                   key={message.id}
@@ -268,7 +273,7 @@ function MailDetailPanel({ model, message }: { model: MailTabModel; message: Mai
         {message.bodyHtml ? <iframe title={`${message.subject} 원본 메일`} sandbox="allow-popups" referrerPolicy="no-referrer" srcDoc={`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; img-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:">${message.bodyHtml}`} style={{ width: '100%', height: '100%', minHeight: 360, border: 0, background: T.cardWhite }} /> : <MailBody text={message.body} />}
       </div>
       {model.loadingSummaryIDs.has(message.id) && message.summary.length === 0 && (
-        <span style={{ ...F.body(11), color: T.grayText }}>AI 요약을 불러오는 중이에요…</span>
+        <NaviLoadingStatus message="AI 요약을 불러오는 중…" compact />
       )}
       <VStack spacing={10}>
         {message.summary.length > 0 && (
@@ -366,10 +371,20 @@ function ComposePanel({ initial, senderAddress, isSending, onClose, onSave, onSe
   senderAddress: string
   isSending: boolean
   onClose: () => void
-  onSave: (draft: MailDraft) => void
-  onSend: (draft: MailDraft) => void
+  onSave: (draft: MailDraft) => Promise<void> | void
+  onSend: (draft: MailDraft) => Promise<void> | void
 }) {
   const [draft, setDraft] = useState(initial)
+  const [pendingAction, setPendingAction] = useState<'save' | 'send' | null>(null)
+  const runAction = async (action: 'save' | 'send') => {
+    if (pendingAction) return
+    setPendingAction(action)
+    try {
+      await (action === 'save' ? onSave(draft) : onSend(draft))
+    } finally {
+      setPendingAction(null)
+    }
+  }
   const canSend = draft.to.includes('@') && draft.body.trim() !== ''
   const field = (title: string, value: string, onChange: (value: string) => void) => (
     <VStack spacing={4} style={{ padding: 10, border: `1px solid ${T.border}`, borderRadius: 10 }}>
@@ -397,8 +412,8 @@ function ComposePanel({ initial, senderAddress, isSending, onClose, onSave, onSe
       </VStack>
       <HStack spacing={10}>
         <Spacer />
-        <NaviPillButton title="임시 저장" size="large" disabled={isSending} onClick={() => onSave(draft)} />
-        <NaviPillButton title="보내기" style="primary" size="large" disabled={!canSend || isSending} onClick={() => onSend(draft)} />
+        <NaviPillButton title="임시 저장" size="large" disabled={isSending || pendingAction === 'send'} isLoading={pendingAction === 'save'} loadingMessage="초안을 저장하는 중…" onClick={() => void runAction('save')} />
+        <NaviPillButton title="보내기" style="primary" size="large" disabled={!canSend || isSending || pendingAction === 'save'} isLoading={pendingAction === 'send'} loadingMessage="메일을 보내는 중…" onClick={() => void runAction('send')} />
       </HStack>
     </Pane>
   )
@@ -491,7 +506,7 @@ function ReplyPanel({ model, message, isEditing, onSend }: {
                 model.set('panel', { kind: 'replyEdit', id: message.id })
               }}
             />
-            <NaviPillButton title="이대로 답장 전송하기" style="primary" size="large" disabled={model.isSending} onClick={onSend} />
+            <NaviPillButton title="이대로 답장 전송하기" style="primary" size="large" isLoading={model.isSending} loadingMessage="답장을 보내는 중…" onClick={onSend} />
           </>
         )}
       </HStack>

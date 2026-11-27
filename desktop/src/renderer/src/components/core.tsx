@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { F, T, naviHex, wash } from '@/lib/theme'
+import type { AgentShape } from '@/lib/appearance'
 import { addDays, addMonths, format, isSameDay, startOfMonth, startOfWeek } from '@/lib/dates'
 import type { NaviCategory } from '@/data/types'
 
@@ -47,8 +48,32 @@ export function NaviImage({ name, width, height, style, alt = '' }: {
   )
 }
 
-export function NaviMascot({ width }: { width: number }) {
-  return <NaviImage name="NaviMascot" width={width} alt="navi" />
+export function NaviLogoMark({ width }: { width: number }) {
+  return <svg aria-label="navi" role="img" viewBox="0 0 30 30" width={width} height={width} style={{ display: 'block', flexShrink: 0 }}>
+    <path d="M15 0C23.2842 0 30 6.7158 30 15c0 .4335-.0184.8627-.0541 1.2869-.1693 1.9914-2.5445 2.5201-3.9408 1.0901-.5937-.608-.8496-1.4568-.8438-2.3067v-.0703c0-5.6119-4.5492-10.1611-10.1611-10.1611S4.8389 9.3881 4.8389 15 9.3881 25.1611 15 25.1611c1.0666 0 2.095-.1642 3.061-.4689 1.0782-.3401 2.3008-.1854 3.0907.6236 1.1094 1.1363.9083 3.0174-.5654 3.6093A14.96 14.96 0 0 1 15 30C6.7157 30 0 23.2843 0 15S6.7158 0 15 0Z" fill={T.purple} />
+    <circle cx="25.8317" cy="23.5478" r="2.90323" fill={T.lime} />
+  </svg>
+}
+
+export function NaviMascot({ width, shape, main, dot }: { width: number; shape?: AgentShape; main?: string; dot?: string }) {
+  return <svg role="img" aria-label="navi 캐릭터" className={`navi-mascot ${shape ? `shape-${shape}` : 'shape-current'}`} viewBox="0 0 120 100" width={width} height={width * 100 / 120} style={{ flexShrink: 0, overflow: 'visible', '--mascot-main': main ?? 'var(--navi-mascot-main, #7165FF)', '--mascot-dot': dot ?? T.lime } as CSSProperties}>
+    <path className="navi-shape navi-shape-dome" d="M13 75C13 44 31 15 58 15c29 0 46 26 46 60 0 14-15 18-46 18S13 89 13 75Z" />
+    <path className="navi-shape navi-shape-cloud" d="M15 73c-8-17 0-34 16-39 5-19 31-25 44-9 18-3 30 10 27 25 10 15 2 36-19 41H38C25 91 18 85 15 73Z" />
+    <path className="navi-shape navi-shape-square" d="M38 15h42c17 0 25 10 25 26v29c0 16-9 23-25 23H38c-17 0-25-8-25-24V39c0-16 9-24 25-24Z" />
+    <path className="navi-shape navi-shape-bean" d="M55 14c17-6 25 7 36 26 12 19 20 32 11 45-6 9-23 10-44 9-23 0-40-2-46-11-8-13 2-31 14-47 10-13 19-20 29-22Z" />
+    <path className="navi-shape navi-shape-star" d="M59 12c10 0 13 17 21 21 7 5 23 5 26 15 3 9-10 20-10 28 0 9 3 17-5 21-8 5-22-5-32-5s-23 10-32 5c-9-5-5-17-6-24-2-8-13-16-10-25 3-10 20-11 27-16 8-5 11-20 21-20Z" />
+    <circle cx="45" cy="49" r="12" fill="white"/><circle cx="75" cy="49" r="12" fill="white"/>
+    <circle cx="41" cy="47" r="6" fill="#19191C"/><circle cx="71" cy="47" r="6" fill="#19191C"/>
+    <path d="M43 43l.8 1.8L45.6 45.6l-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L43 43Z M73 43l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8L73 43Z" fill="white" />
+    <circle cx="111" cy="83" r="8" fill="var(--mascot-dot)"/>
+  </svg>
+}
+
+export function NaviLoadingStatus({ message, compact = false }: { message: string; compact?: boolean }) {
+  return <span role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(compact ? 10 : 12, 'light'), color: T.grayText }}>
+    <span className="navi-loading-logo"><NaviLogoMark width={compact ? 18 : 24} /></span>
+    {message}
+  </span>
 }
 
 export function Spinner({ small }: { small?: boolean }) {
@@ -276,11 +301,12 @@ NaviDateField.format = (date: Date) => format(date, 'yyyy.MM.dd  HH:mm')
 // MARK: - Buttons
 
 /// Full-width onboarding call-to-action button.
-export function NaviButton({ title, style = 'primary', isEnabled = true, isLoading = false, onClick }: {
+export function NaviButton({ title, style = 'primary', isEnabled = true, isLoading = false, loadingMessage, onClick }: {
   title: string
   style?: 'primary' | 'secondary'
   isEnabled?: boolean
   isLoading?: boolean
+  loadingMessage?: string
   onClick: () => void
 }) {
   const background = !isEnabled ? T.disabled : style === 'primary' ? T.purple : T.lavender
@@ -301,7 +327,7 @@ export function NaviButton({ title, style = 'primary', isEnabled = true, isLoadi
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="navi-loading-logo"><NaviMascot width={22} /></span>{title}</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, ...F.body(11, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 3 }}><NaviLogoMark width={18} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
@@ -315,13 +341,14 @@ export function NaviLinkButton({ title, onClick }: { title: string; onClick: () 
 }
 
 /// Compact tinted button used inside cards ("할 일 추가", "비밀번호 변경", "연결", "관리").
-export function NaviPillButton({ title, icon, style = 'accent', size = 'regular', disabled, isLoading = false, onClick }: {
+export function NaviPillButton({ title, icon, style = 'accent', size = 'regular', disabled, isLoading = false, loadingMessage, onClick }: {
   title: string
   icon?: string
   style?: 'accent' | 'success' | 'outline' | 'primary'
   size?: 'regular' | 'large'
   disabled?: boolean
   isLoading?: boolean
+  loadingMessage?: string
   onClick: () => void
 }) {
   const colors = {
@@ -353,8 +380,8 @@ export function NaviPillButton({ title, icon, style = 'accent', size = 'regular'
         opacity: disabled ? 0.6 : 1
       }}
     >
-      {isLoading ? <span className="navi-loading-logo"><NaviMascot width={18} /></span> : icon && <NaviIcon name={icon} />}
-      {title}
+      {isLoading ? <span className="navi-loading-logo" style={style === 'primary' ? { background: T.cardWhite, borderRadius: '50%', padding: 2 } : undefined}><NaviLogoMark width={16} /></span> : icon && <NaviIcon name={icon} />}
+      <span style={isLoading ? F.body(10, 'light') : undefined}>{isLoading ? loadingMessage ?? `${title} 중…` : title}</span>
     </button>
   )
 }
@@ -369,11 +396,12 @@ export function NaviCloseButton({ onClick }: { onClick: () => void }) {
 }
 
 /// Figma dialog button row item: white "취소", lavender secondary, purple primary, or red destructive.
-export function NaviDialogButton({ title, role = 'primary', isEnabled = true, isLoading = false, onClick }: {
+export function NaviDialogButton({ title, role = 'primary', isEnabled = true, isLoading = false, loadingMessage, onClick }: {
   title: string
   role?: 'cancel' | 'secondary' | 'primary' | 'destructive'
   isEnabled?: boolean
   isLoading?: boolean
+  loadingMessage?: string
   onClick: () => void
 }) {
   const [color, background] = {
@@ -399,7 +427,7 @@ export function NaviDialogButton({ title, role = 'primary', isEnabled = true, is
         textAlign: 'center'
       }}
     >
-      {isLoading ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Spinner small />{title} 중…</span> : title}
+      {isLoading ? <span role="status" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...F.body(10, 'light') }}><span className="navi-loading-logo" style={{ background: T.cardWhite, borderRadius: '50%', padding: 2 }}><NaviLogoMark width={15} /></span>{loadingMessage ?? `${title} 중…`}</span> : title}
     </button>
   )
 }
@@ -494,7 +522,7 @@ export function NaviTag({ text, style = 'count', tint, fontSize }: {
   /** Figma uses 9pt category tags in rows and 11pt ones in pickers. */
   fontSize?: number
 }) {
-  const color = style === 'count' ? T.dark : tint ? naviHex(tint) : T.purple
+  const color = style === 'count' ? T.dark : tint ? tint.startsWith('var(') ? tint : naviHex(tint) : T.purple
   const background = style === 'count' ? T.limeLight : tint ? wash(tint, 0.14) : T.lavender
   return (
     <span

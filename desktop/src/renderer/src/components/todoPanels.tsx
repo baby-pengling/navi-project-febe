@@ -14,6 +14,7 @@ import {
   NaviFieldBox,
   NaviIcon,
   NaviImage,
+  NaviLoadingStatus,
   NaviMenu,
   NaviPanel,
   NaviPanelHeader,
@@ -282,7 +283,7 @@ export function WeeklyPrepPanel({ model }: { model: TodoTabModel }) {
         추가하기 전 이름과 기한을 확인하세요.
       </span>
       {model.isLoadingSuggestions ? (
-        <span style={{ ...F.body(12), color: T.grayText, padding: '8px 0' }}>이번 주 일정을 보고 할 일을 정리하고 있어요…</span>
+        <NaviLoadingStatus message="이번 주 일정을 살펴보는 중…" compact />
       ) : (
         model.suggestions.length === 0 && (
           <span style={{ ...F.body(12), color: T.grayText, padding: '8px 0' }}>{model.errorMessage ?? '이번 주에 추천할 할 일이 없어요.'}</span>
@@ -300,12 +301,13 @@ export function WeeklyPrepPanel({ model }: { model: TodoTabModel }) {
       </VStack>
       <HStack>
         <NaviDialogButton
-          title={isAdding ? '추가 중…' : '선택한 할 일 추가'}
+          title="선택한 할 일 추가"
           isEnabled={model.suggestions.some((s) => s.isSelected) && !isAdding}
+          isLoading={isAdding}
+          loadingMessage="선택한 할 일을 추가하는 중…"
           onClick={async () => {
             setAdding(true)
-            await model.addSelectedSuggestions()
-            setAdding(false)
+            try { await model.addSelectedSuggestions() } finally { setAdding(false) }
           }}
         />
       </HStack>
@@ -389,8 +391,10 @@ export function PrepDetailPanel({ categories, initial, onCancel, onAdd }: {
       <HStack spacing={8}>
         <NaviDialogButton title="취소" role="cancel" onClick={onCancel} />
         <NaviDialogButton
-          title={isSaving ? '추가 중…' : '할 일 추가'}
+          title="할 일 추가"
           isEnabled={suggestion.title.trim() !== '' && !isSaving}
+          isLoading={isSaving}
+          loadingMessage="추천 할 일을 추가하는 중…"
           onClick={async () => {
             setSaving(true)
             try {
