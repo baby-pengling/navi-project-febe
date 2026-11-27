@@ -269,6 +269,7 @@ function MailDetailPanel({ model, message }: { model: MailTabModel; message: Mai
           {message.subject}
         </span>
         <Divider />
+        {model.isLoadingThread(message) && <NaviLoadingStatus message="대화 내용을 불러오는 중…" compact />}
         {older.length > 0 && <div className="scroll" style={{ maxHeight: showAll ? 260 : undefined, flexShrink: 0 }}>
           {previews.map((item) => <MailThreadPreview key={item.id} message={item} onClick={() => model.open(item.id)} />)}
           {hiddenCount > 0 && <button type="button" aria-label={`이전 메일 ${hiddenCount}개 펼치기`} onClick={() => setShowAll(true)} style={{ ...F.body(11, 'bold'), color: T.grayText, background: T.cardWhite, border: `1px solid ${T.border}`, width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', margin: '8px 0 8px 6px' }}>{hiddenCount}</button>}

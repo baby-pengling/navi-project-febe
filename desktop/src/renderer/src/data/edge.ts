@@ -244,6 +244,12 @@ export class MailService {
     return { body: row.body_text ?? row.snippet ?? '', bodyHtml: row.body_html ?? undefined }
   }
 
+  /// Every message in a selected Gmail conversation, including older and sent replies.
+  async thread(id: string): Promise<MailMessage[]> {
+    const response = await this.edge.call<{ messages: MessageDTO[] }>('GET', `mail/messages/${id.toLowerCase()}/thread`)
+    return response.messages.map((row) => MailService.message(row, new Map()))
+  }
+
   /// Cached AI summary, reply suggestion, and first suggested todo.
   async insight(id: string): Promise<MailInsight> {
     const dto = await this.edge.call<{
